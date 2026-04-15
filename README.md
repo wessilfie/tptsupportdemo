@@ -1,36 +1,109 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TPT Support Demo
 
-## Getting Started
+This repository contains a prompt-driven Teachers Pay Teachers support demo built with Next.js.
 
-First, run the development server:
+It combines:
+
+- a floating support bot for instant answers
+- a guided Contact Us flow that routes users into the right support path
+- a submission payload view that captures request details, client context, and bot transcript data
+
+The app is designed to demonstrate a support experience where the bot handles straightforward questions and then hands users into a sharper contact form when human review is needed.
+
+## What the demo includes
+
+- Prompt-backed support bot using the OpenAI Responses API
+- Clickable bot links with support for markdown-style links and bold text
+- Human handoff into the most likely contact flow after repeated failed bot attempts
+- Contact flow taxonomy for refunds, login issues, technical problems, school purchasing, seller issues, and fallback `Other`
+- Submission payload with:
+  - topic area and issue
+  - tags
+  - name, email, and user ID when available
+  - browser, OS, device, IP, and user-agent context
+  - an ordered user/bot transcript when the support bot was used
+  - `usedBot` to distinguish direct-form users from bot-routed users
+
+## Tech stack
+
+- Next.js 16
+- React 19
+- TypeScript
+- OpenAI Node SDK
+- Tailwind CSS 4
+
+## Environment variables
+
+Create a local `.env.local` file with:
+
+```bash
+OPENAI_API_KEY=sk-proj-...
+OPENAI_SUPPORT_PROMPT_ID=pmpt_...
+OPENAI_SUPPORT_PROMPT_VERSION=1
+```
+
+Notes:
+
+- `OPENAI_SUPPORT_PROMPT_ID` should point to the prompt used by `/support/chatbot`
+- `OPENAI_SUPPORT_PROMPT_VERSION` is typically `1` unless you want a different saved prompt version
+- the bot is currently prompt-based, not ChatKit-based
+
+## Local development
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Run the app:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run dev
+npm run build
+npm run start
+```
 
-## Learn More
+## Key app paths
 
-To learn more about Next.js, take a look at the following resources:
+- `app/page.tsx`
+  Main entry page
+- `app/support/chatbot/route.ts`
+  Server route that sends support questions to OpenAI using the configured prompt
+- `app/api/client-context/route.ts`
+  Server route that derives browser, OS, device, IP, and user-agent context for submissions
+- `components/CxChatWidget.tsx`
+  Floating support bot UI
+- `components/SupportExperience.tsx`
+  Contact-flow experience, submission payload construction, and bot handoff logic
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deployment
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The app is deployed on Vercel.
 
-## Deploy on Vercel
+For Vercel project settings, add these environment variables for `Production`, `Preview`, and `Development`:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+OPENAI_API_KEY
+OPENAI_SUPPORT_PROMPT_ID
+OPENAI_SUPPORT_PROMPT_VERSION
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Behavior notes
+
+- The bot first tries to answer questions directly through the configured OpenAI prompt
+- If the answer is not helpful and the user rejects it twice, the UI routes them into the closest matching contact flow
+- If no match is clear, the fallback route is `Other / Not Sure`
+- The transcript is kept in the submission payload for support review, but it is not shown back to the user in the visible form
+
+## Repository purpose
+
+This is a demo/support prototype, not a production TPT support backend. The contact form submission currently demonstrates payload capture and UI flow rather than sending tickets into a live CX system.
