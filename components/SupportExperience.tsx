@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -1161,6 +1163,7 @@ function buildTranscript(context: ChatHandoffContext | null) {
 }
 
 function App() {
+  const router = useRouter();
   const categoryEntries = Object.entries(FLOW_DATA);
   const [authState, setAuthState] = useState<AuthState>("logged_in");
   const [isGuest, setIsGuest] = useState(false);
@@ -1327,6 +1330,38 @@ function App() {
     );
   }, [activeIssue]);
 
+  function inferDynamicContactTopic(context: ChatHandoffContext) {
+    const combinedText = [
+      context.originalQuestion,
+      context.restatedQuestion ?? "",
+      ...context.transcript.map((entry) => entry.content),
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    if (
+      /\b(log[ -]?in|login|sign[ -]?in|password|reset|locked out|can'?t access|cannot access)\b/.test(
+        combinedText,
+      )
+    ) {
+      return "login";
+    }
+
+    if (
+      /\b(refund|credit|charged|charge|billing|duplicate purchase|wrong resource|purchase)\b/.test(
+        combinedText,
+      )
+    ) {
+      return "refund";
+    }
+
+    if (/\b(how|what|where|when|why|can i|question)\b/.test(combinedText)) {
+      return "question";
+    }
+
+    return "other";
+  }
+
   function resetFlow(parent = selectedParent, issueLabel?: string) {
     setSelectedParent(parent);
     setSelectedIssueLabel(issueLabel ?? "");
@@ -1367,25 +1402,8 @@ function App() {
   }
 
   function handleChatEscalation(context: ChatHandoffContext) {
-    const inferredRoute = inferFlowRoute(context);
-
-    setChatbotHandoff(context);
-    setSubmittedPayload(null);
-    setSelectedParent(inferredRoute.parent);
-    setSelectedIssueLabel(inferredRoute.issueLabel);
-    setFormValues({});
-    setOpenResourceFieldId(null);
-
-    if (authState === "logged_out") {
-      setIsGuest(true);
-    }
-
-    window.setTimeout(() => {
-      intakeSectionRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 120);
+    const topic = inferDynamicContactTopic(context);
+    router.push(`/dynamiccontact?topic=${topic}&source=chatbot`);
   }
 
   function goBackToTopics() {
@@ -1750,13 +1768,23 @@ function App() {
       <div className="mx-auto max-w-6xl px-6 py-10">
         <div className="rounded-[2rem] border border-slate-200 bg-white shadow-[0_25px_70px_-50px_rgba(15,23,42,0.3)]">
           <div className="border-b border-slate-200 px-6 py-8 sm:px-10">
-            <p className="text-sm font-semibold text-[#ab3f1f]">
-              Contact Us
-            </p>
-            <h1 className="mt-3 text-4xl font-semibold tracking-tight">We&apos;re here to help!</h1>
-            <p className="mt-4 max-w-4xl text-lg leading-8 text-slate-600">
-              To get started, we&apos;ll walk you through a few quick steps. We&apos;ll only ask for the details we need so we can get your request to the right team as quickly as possible.
-            </p>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-[#ab3f1f]">
+                  Contact Us
+                </p>
+                <h1 className="mt-3 text-4xl font-semibold tracking-tight">We&apos;re here to help!</h1>
+                <p className="mt-4 max-w-4xl text-lg leading-8 text-slate-600">
+                  To get started, we&apos;ll walk you through a few quick steps. We&apos;ll only ask for the details we need so we can get your request to the right team as quickly as possible.
+                </p>
+              </div>
+              <Link
+                href="/dynamiccontact"
+                className="rounded-full border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-medium text-[#14473f] transition hover:border-emerald-300 hover:bg-emerald-100"
+              >
+                Open Contact Us form
+              </Link>
+            </div>
           </div>
 
           <div className="border-b border-slate-200 bg-[#fcfcfb] px-6 py-6 sm:px-10">
