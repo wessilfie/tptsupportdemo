@@ -1,14 +1,7 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
-import clsx from "clsx";
-import {
-  ArrowLeft,
-  CheckCircle2,
-  Link as LinkIcon,
-  LogIn,
-  Paperclip,
-} from "lucide-react";
+import { ArrowLeft, CheckCircle2, ChevronDown, Link as LinkIcon, Paperclip, Search, ShoppingCart } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 
 type AuthState = "logged_in" | "logged_out";
@@ -25,7 +18,6 @@ type SubmissionRecord = {
   refundReason: string;
   details: string;
   attachments: string[];
-  source: string | null;
 };
 
 const LOGGED_IN_PROFILE = {
@@ -33,23 +25,25 @@ const LOGGED_IN_PROFILE = {
   email: "will+demo@ixl.com",
 };
 
-const TOPIC_OPTIONS: Array<{ topic: DynamicTopic; description: string }> = [
-  {
-    topic: "Issues with Logging In",
-    description: "Account access, password reset, and sign-in trouble.",
-  },
-  {
-    topic: "Refund",
-    description: "Refund requests and product purchase follow-up.",
-  },
-  {
-    topic: "Question about TPT",
-    description: "General questions about TPT or how something works.",
-  },
-  {
-    topic: "Other",
-    description: "Anything else you need help with.",
-  },
+const NAV_ITEMS = [
+  "Grade",
+  "Resource type",
+  "Seasonal",
+  "ELA",
+  "Math",
+  "Science",
+  "Social studies",
+  "Languages",
+  "Arts",
+  "Special education",
+  "Speech therapy",
+];
+
+const TOPIC_OPTIONS: DynamicTopic[] = [
+  "Issues with Logging In",
+  "Refund",
+  "Question about TPT",
+  "Other",
 ];
 
 const REFUND_REASONS = [
@@ -81,33 +75,24 @@ function getTopicFromQuery(value: string | null): DynamicTopic | "" {
   }
 }
 
-function getTopicCopy(topic: DynamicTopic) {
-  switch (topic) {
-    case "Issues with Logging In":
-      return {
-        title: "Login issue details",
-        description:
-          "Please provide the account information and a short description of what happened.",
-      };
-    case "Refund":
-      return {
-        title: "Refund request details",
-        description:
-          "Share the resource link and why you would like a refund so the team can review it.",
-      };
-    case "Question about TPT":
-      return {
-        title: "Your question",
-        description:
-          "Give us a little context and we’ll make sure the right person follows up.",
-      };
-    case "Other":
-      return {
-        title: "Tell us more",
-        description:
-          "Describe the issue in your own words and add a file if it would help.",
-      };
+function topicHelperCopy(topic: DynamicTopic | "") {
+  if (topic === "Issues with Logging In") {
+    return "If you can’t access your account, include the account email, mailing address, and what happens when you try to log in.";
   }
+
+  if (topic === "Refund") {
+    return "Include the resource link, why you are requesting the refund, and any order or error details that will help us review it faster.";
+  }
+
+  return "Providing as much detail as you can will help us resolve your question faster.";
+}
+
+function inputClassName() {
+  return "w-full rounded-none border border-slate-400 bg-white px-3 py-2.5 text-base text-slate-900 outline-none focus:border-[#63E0A5] focus:ring-2 focus:ring-[#dff8ea]";
+}
+
+function textAreaClassName() {
+  return "min-h-48 w-full rounded-none border border-slate-300 bg-white px-3 py-3 text-base leading-7 text-slate-900 outline-none focus:border-[#63E0A5] focus:ring-2 focus:ring-[#dff8ea]";
 }
 
 export default function DynamicContactExperience() {
@@ -132,20 +117,20 @@ export default function DynamicContactExperience() {
     }
   }, [searchParams]);
 
-  const topicCopy = topic ? getTopicCopy(topic) : null;
   const source = searchParams.get("source");
+  const showIdentityFields = authState === "logged_out";
 
   const isStepOneValid = useMemo(() => {
     if (!topic) {
       return false;
     }
 
-    if (authState === "logged_in") {
+    if (!showIdentityFields) {
       return true;
     }
 
     return Boolean(name.trim() && email.trim());
-  }, [authState, email, name, topic]);
+  }, [email, name, showIdentityFields, topic]);
 
   const isStepTwoValid = useMemo(() => {
     if (!topic || !details.trim()) {
@@ -190,414 +175,376 @@ export default function DynamicContactExperience() {
     setSubmittedRecord({
       authState,
       topic,
-      name: authState === "logged_in" ? LOGGED_IN_PROFILE.name : name.trim(),
-      email: authState === "logged_in" ? LOGGED_IN_PROFILE.email : email.trim(),
+      name: showIdentityFields ? name.trim() : LOGGED_IN_PROFILE.name,
+      email: showIdentityFields ? email.trim() : LOGGED_IN_PROFILE.email,
       accountEmail: accountEmail.trim(),
       mailingAddress: mailingAddress.trim(),
       resourceLink: resourceLink.trim(),
       refundReason: refundReason.trim(),
       details: details.trim(),
       attachments: attachments.map((file) => file.name),
-      source,
     });
     setCurrentStep(3);
   }
 
   return (
-    <div className="min-h-screen bg-[#f8faf8] text-slate-900">
-      <div className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#dff8ea] text-[#14473f]">
-              <span className="text-xl font-black">T</span>
+    <div className="min-h-screen bg-white text-slate-900">
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-[1450px] px-8 py-8">
+          <div className="flex items-center justify-between gap-8">
+            <div className="flex items-center gap-4 text-[#14473f]">
+              <div className="relative h-12 w-16">
+                <span className="absolute left-0 top-3 h-5 w-5 rounded-full bg-[#14473f]" />
+                <span className="absolute left-6 top-0 h-5 w-5 rounded-full bg-[#63E0A5]" />
+                <span className="absolute left-10 top-3 h-5 w-5 rounded-full bg-[#14473f]" />
+                <span className="absolute left-2 top-5 h-2 w-12 rounded-full bg-[#14473f]" />
+              </div>
+              <div className="text-5xl font-black tracking-tight">TPT</div>
             </div>
-            <div>
-              <div className="text-3xl font-black tracking-tight text-[#14473f]">TPT</div>
-              <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
-                Contact Support
+
+            <div className="hidden flex-1 justify-center lg:flex">
+              <div className="flex w-full max-w-[850px] items-center rounded-full border border-slate-300 bg-white px-10 py-3 text-[17px] text-slate-400">
+                Search
+                <div className="ml-auto flex h-[72px] w-[72px] items-center justify-center rounded-full bg-[#63E0A5] text-[#14473f]">
+                  <Search className="size-8" />
+                </div>
               </div>
             </div>
+
+            <div className="flex items-center gap-10 text-2xl font-semibold text-slate-800">
+              <span>Log In | Sign Up</span>
+              <ShoppingCart className="size-11 stroke-[1.8]" />
+            </div>
           </div>
-          <div className="text-sm font-semibold text-slate-600">
-            Log In | Sign Up
+
+          <div className="mt-7 hidden items-center justify-between border-t border-slate-200 pt-6 text-[18px] font-medium text-slate-800 lg:flex">
+            {NAV_ITEMS.map((item) => (
+              <span key={item}>{item}</span>
+            ))}
+            <span className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 text-3xl text-slate-500">
+              ›
+            </span>
           </div>
         </div>
-      </div>
+      </header>
 
-      <main className="mx-auto max-w-4xl px-6 py-10">
-        <section>
-          <p className="text-[14px] font-semibold text-[#1b5e4b]">Contact Us</p>
-          <h1 className="mt-4 text-4xl font-semibold tracking-tight">We&apos;re here to help!</h1>
-          <p className="mt-3 max-w-3xl text-[18px] leading-8 text-slate-700">
+      <main className="mx-auto max-w-[1140px] px-8 py-14">
+        <section className="max-w-[980px]">
+          <p className="text-[24px] font-semibold text-[#1b5e4b]">Contact Us</p>
+          <h1 className="mt-5 text-[58px] font-semibold leading-none tracking-tight">We&apos;re here to help!</h1>
+          <p className="mt-5 text-[29px] leading-[1.25] text-slate-900">
             To get started, fill out the form below, providing as much detail as you can.
             Someone from TPT&apos;s Customer Experience team will get back to you as soon as
             possible.
           </p>
         </section>
 
-        <section className="mt-8 rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_25px_60px_-48px_rgba(15,23,42,0.32)]">
-          <div className="border-b border-slate-200 px-6 py-5 sm:px-8">
-            <div className="flex flex-wrap gap-3">
-              {[
-                { id: 1, label: "Contact" },
-                { id: 2, label: "Details" },
-                { id: 3, label: "Sent" },
-              ].map((step) => {
-                const isCurrent = step.id === currentStep;
-                const isComplete = step.id < currentStep;
-
-                return (
-                  <div
-                    key={step.id}
-                    className={clsx(
-                      "flex items-center gap-3 rounded-full border px-4 py-2",
-                      isCurrent
-                        ? "border-emerald-200 bg-emerald-50"
-                        : isComplete
-                          ? "border-[#14473f] bg-[#14473f] text-white"
-                          : "border-slate-200 bg-white",
-                    )}
-                  >
-                    <div
-                      className={clsx(
-                        "flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold",
-                        isCurrent
-                          ? "bg-[#63E0A5] text-slate-950"
-                          : isComplete
-                            ? "bg-[#14473f] text-white"
-                            : "bg-slate-100 text-slate-500",
-                      )}
-                    >
-                      {step.id}
-                    </div>
-                    <span
-                      className={clsx(
-                        "text-base font-semibold",
-                        isCurrent || isComplete ? "text-slate-900" : "text-slate-500",
-                      )}
-                    >
-                      {step.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+        {source === "chatbot" && currentStep !== 3 ? (
+          <div className="mt-8 max-w-[980px] rounded-md border border-emerald-200 bg-emerald-50 px-5 py-4 text-base text-slate-700">
+            We preselected a topic from your chat. You can change it before continuing.
           </div>
+        ) : null}
 
-          <div className="px-6 py-8 sm:px-8">
-            {currentStep === 1 ? (
-              <div className="mx-auto max-w-2xl">
-                {source === "chatbot" ? (
-                  <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm leading-6 text-slate-700">
-                    We preselected a topic based on your chat. You can change it before
-                    continuing.
-                  </div>
-                ) : null}
+        {currentStep !== 3 ? (
+          <section className="mt-10 max-w-[980px]">
+            <div className="mb-6 flex flex-wrap items-center gap-3 text-sm">
+              <button
+                type="button"
+                className={authState === "logged_out" ? "rounded-full bg-[#14473f] px-4 py-2 font-medium text-white" : "rounded-full border border-slate-300 px-4 py-2 font-medium text-slate-700"}
+                onClick={() => setAuthState("logged_out")}
+              >
+                Logged out
+              </button>
+              <button
+                type="button"
+                className={authState === "logged_in" ? "rounded-full bg-[#63E0A5] px-4 py-2 font-medium text-slate-950" : "rounded-full border border-slate-300 px-4 py-2 font-medium text-slate-700"}
+                onClick={() => setAuthState("logged_in")}
+              >
+                Logged in demo
+              </button>
+            </div>
 
-                <div className="mb-8 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    className={
-                      authState === "logged_out"
-                        ? "rounded-full bg-[#14473f] px-4 py-2 text-sm font-medium text-white"
-                        : "rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-emerald-300"
-                    }
-                    onClick={() => setAuthState("logged_out")}
-                  >
-                    Logged out
-                  </button>
-                  <button
-                    type="button"
-                    className={
-                      authState === "logged_in"
-                        ? "inline-flex items-center gap-2 rounded-full bg-[#63E0A5] px-4 py-2 text-sm font-medium text-slate-950"
-                        : "inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-emerald-300"
-                    }
-                    onClick={() => setAuthState("logged_in")}
-                  >
-                    <LogIn className="size-4" />
-                    Logged in demo
-                  </button>
-                </div>
-
-                {authState === "logged_out" ? (
-                  <div className="space-y-5">
-                    <div>
-                      <label htmlFor="name" className="mb-2 block text-sm font-semibold text-slate-700">
-                        Full Name: <span className="text-[#1b5e4b]">*</span>
-                      </label>
-                      <input
-                        id="name"
-                        type="text"
-                        className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
-                        value={name}
-                        onChange={(event) => setName(event.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="email" className="mb-2 block text-sm font-semibold text-slate-700">
-                        Email Address: <span className="text-[#1b5e4b]">*</span>
-                      </label>
-                      <input
-                        id="email"
-                        type="email"
-                        className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
-                        value={email}
-                        onChange={(event) => setEmail(event.target.value)}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50/60 px-5 py-4 text-sm leading-6 text-slate-700">
-                    We&apos;ll use the signed-in account for this request:{" "}
-                    <span className="font-semibold text-slate-900">
-                      {LOGGED_IN_PROFILE.name} ({LOGGED_IN_PROFILE.email})
-                    </span>
-                  </div>
-                )}
-
-                <div className="mt-8">
-                  <label className="mb-3 block text-sm font-semibold text-slate-700">
-                    What can we help you with today? <span className="text-[#1b5e4b]">*</span>
-                  </label>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {TOPIC_OPTIONS.map((option) => (
-                      <button
-                        key={option.topic}
-                        type="button"
-                        className={clsx(
-                          "rounded-2xl border px-5 py-4 text-left transition",
-                          topic === option.topic
-                            ? "border-emerald-400 bg-emerald-50"
-                            : "border-slate-200 bg-white hover:border-emerald-300",
-                        )}
-                        onClick={() => setTopic(option.topic)}
-                      >
-                        <div className="text-lg font-semibold text-slate-900">{option.topic}</div>
-                        <div className="mt-1 text-sm leading-6 text-slate-600">
-                          {option.description}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mt-8 flex justify-end">
-                  <button
-                    type="button"
-                    className={clsx(
-                      "rounded-full px-5 py-3 text-sm font-semibold transition",
-                      isStepOneValid
-                        ? "bg-[#63E0A5] text-slate-950 hover:bg-[#4fd390]"
-                        : "cursor-not-allowed bg-slate-200 text-slate-400",
-                    )}
-                    disabled={!isStepOneValid}
-                    onClick={() => setCurrentStep(2)}
-                  >
-                    Continue
-                  </button>
-                </div>
-              </div>
+            {currentStep === 2 ? (
+              <button
+                type="button"
+                className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-[#14473f]"
+                onClick={() => setCurrentStep(1)}
+              >
+                <ArrowLeft className="size-4" />
+                Back
+              </button>
             ) : null}
 
-            {currentStep === 2 && topic ? (
-              <div className="mx-auto max-w-2xl">
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-emerald-300 hover:text-slate-900"
-                  onClick={() => setCurrentStep(1)}
-                >
-                  <ArrowLeft className="size-4" />
-                  Back
-                </button>
+            <div className="space-y-7">
+              {currentStep === 1 ? (
+                <>
+                  <FormRow
+                    label="Topic:"
+                    required
+                    field={
+                      <div className="relative">
+                        <select
+                          className={`${inputClassName()} appearance-none pr-12`}
+                          value={topic}
+                          onChange={(event) => setTopic(event.target.value as DynamicTopic | "")}
+                        >
+                          <option value="">Select Topic</option>
+                          {TOPIC_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-4 top-1/2 size-5 -translate-y-1/2 text-slate-500" />
+                      </div>
+                    }
+                  />
 
-                <h2 className="mt-6 text-3xl font-semibold tracking-tight">{topicCopy?.title}</h2>
-                <p className="mt-3 text-[17px] leading-7 text-slate-700">{topicCopy?.description}</p>
+                  {showIdentityFields ? (
+                    <>
+                      <FormRow
+                        label="Full Name:"
+                        required
+                        field={
+                          <input
+                            type="text"
+                            className={inputClassName()}
+                            value={name}
+                            onChange={(event) => setName(event.target.value)}
+                          />
+                        }
+                      />
+                      <FormRow
+                        label="Email Address:"
+                        required
+                        field={
+                          <input
+                            type="email"
+                            className={inputClassName()}
+                            value={email}
+                            onChange={(event) => setEmail(event.target.value)}
+                          />
+                        }
+                      />
+                    </>
+                  ) : (
+                    <FormRow
+                      label="Account:"
+                      field={
+                        <div className="border border-emerald-200 bg-emerald-50 px-4 py-3 text-base text-slate-700">
+                          Using {LOGGED_IN_PROFILE.name} ({LOGGED_IN_PROFILE.email})
+                        </div>
+                      }
+                    />
+                  )}
 
-                <div className="mt-8 space-y-5">
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      className={isStepOneValid ? "rounded-full bg-[#63E0A5] px-6 py-3 text-sm font-semibold text-slate-950" : "cursor-not-allowed rounded-full bg-slate-200 px-6 py-3 text-sm font-semibold text-slate-400"}
+                      disabled={!isStepOneValid}
+                      onClick={() => setCurrentStep(2)}
+                    >
+                      Continue
+                    </button>
+                  </div>
+                </>
+              ) : null}
+
+              {currentStep === 2 && topic ? (
+                <>
                   {topic === "Issues with Logging In" ? (
                     <>
-                      <div>
-                        <label htmlFor="account-email" className="mb-2 block text-sm font-semibold text-slate-700">
-                          Email on account: <span className="text-[#1b5e4b]">*</span>
-                        </label>
-                        <input
-                          id="account-email"
-                          type="email"
-                          className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
-                          value={accountEmail}
-                          onChange={(event) => setAccountEmail(event.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="mailing-address" className="mb-2 block text-sm font-semibold text-slate-700">
-                          Mailing address on the account: <span className="text-[#1b5e4b]">*</span>
-                        </label>
-                        <input
-                          id="mailing-address"
-                          type="text"
-                          className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
-                          value={mailingAddress}
-                          onChange={(event) => setMailingAddress(event.target.value)}
-                        />
-                      </div>
+                      <FormRow
+                        label="Email On Account:"
+                        required
+                        field={
+                          <input
+                            type="email"
+                            className={inputClassName()}
+                            value={accountEmail}
+                            onChange={(event) => setAccountEmail(event.target.value)}
+                          />
+                        }
+                      />
+                      <FormRow
+                        label="Mailing Address:"
+                        required
+                        field={
+                          <input
+                            type="text"
+                            className={inputClassName()}
+                            value={mailingAddress}
+                            onChange={(event) => setMailingAddress(event.target.value)}
+                          />
+                        }
+                      />
                     </>
                   ) : null}
 
                   {topic === "Refund" ? (
                     <>
-                      <div>
-                        <label htmlFor="resource-link" className="mb-2 block text-sm font-semibold text-slate-700">
-                          Link to resource: <span className="text-[#1b5e4b]">*</span>
-                        </label>
-                        <div className="relative">
-                          <LinkIcon className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                          <input
-                            id="resource-link"
-                            type="url"
-                            className="w-full rounded-xl border border-slate-300 px-10 py-3 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
-                            value={resourceLink}
-                            onChange={(event) => setResourceLink(event.target.value)}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label htmlFor="refund-reason" className="mb-2 block text-sm font-semibold text-slate-700">
-                          Why are you requesting a refund? <span className="text-[#1b5e4b]">*</span>
-                        </label>
-                        <select
-                          id="refund-reason"
-                          className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
-                          value={refundReason}
-                          onChange={(event) => setRefundReason(event.target.value)}
-                        >
-                          <option value="">Select reason</option>
-                          {REFUND_REASONS.map((reason) => (
-                            <option key={reason} value={reason}>
-                              {reason}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <FormRow
+                        label="Resource URL or name:"
+                        required
+                        field={
+                          <div className="relative">
+                            <LinkIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                            <input
+                              type="url"
+                              className={`${inputClassName()} pl-10`}
+                              value={resourceLink}
+                              onChange={(event) => setResourceLink(event.target.value)}
+                            />
+                          </div>
+                        }
+                      />
+                      <FormRow
+                        label="Refund Reason:"
+                        required
+                        field={
+                          <div className="relative">
+                            <select
+                              className={`${inputClassName()} appearance-none pr-12`}
+                              value={refundReason}
+                              onChange={(event) => setRefundReason(event.target.value)}
+                            >
+                              <option value="">Select reason</option>
+                              {REFUND_REASONS.map((reason) => (
+                                <option key={reason} value={reason}>
+                                  {reason}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown className="pointer-events-none absolute right-4 top-1/2 size-5 -translate-y-1/2 text-slate-500" />
+                          </div>
+                        }
+                      />
                     </>
                   ) : null}
 
-                  <div>
-                    <label htmlFor="details" className="mb-2 block text-sm font-semibold text-slate-700">
-                      {topic === "Refund" ? "Describe the issue" : "Message"}:{" "}
-                      <span className="text-[#1b5e4b]">*</span>
-                    </label>
-                    <textarea
-                      id="details"
-                      className="min-h-44 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
-                      value={details}
-                      onChange={(event) => setDetails(event.target.value)}
-                    />
-                  </div>
+                  <FormRow
+                    label="Message:"
+                    required
+                    alignTop
+                    field={
+                      <textarea
+                        className={textAreaClassName()}
+                        value={details}
+                        placeholder={topicHelperCopy(topic)}
+                        onChange={(event) => setDetails(event.target.value)}
+                      />
+                    }
+                  />
 
-                  <div>
-                    <label htmlFor="file-upload" className="mb-2 block text-sm font-semibold text-slate-700">
-                      Upload file if needed
-                    </label>
-                    <label
-                      htmlFor="file-upload"
-                      className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-slate-300 px-4 py-4 text-sm text-slate-600 hover:border-emerald-300"
-                    >
-                      <Paperclip className="size-4 text-[#1b5e4b]" />
-                      Choose file
-                    </label>
-                    <input
-                      id="file-upload"
-                      type="file"
-                      multiple
-                      className="sr-only"
-                      onChange={handleFileChange}
-                    />
-                    {attachments.length ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {attachments.map((file) => (
-                          <span
-                            key={`${file.name}-${file.lastModified}`}
-                            className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800"
-                          >
-                            {file.name}
-                          </span>
-                        ))}
+                  <FormRow
+                    label="Attachment:"
+                    alignTop
+                    field={
+                      <div>
+                        <label
+                          htmlFor="file-upload"
+                          className="inline-flex cursor-pointer items-center gap-2 border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700"
+                        >
+                          <Paperclip className="size-4 text-[#1b5e4b]" />
+                          Upload file if needed
+                        </label>
+                        <input
+                          id="file-upload"
+                          type="file"
+                          multiple
+                          className="sr-only"
+                          onChange={handleFileChange}
+                        />
+                        {attachments.length ? (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {attachments.map((file) => (
+                              <span key={`${file.name}-${file.lastModified}`} className="border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">
+                                {file.name}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
-                    ) : null}
-                  </div>
-                </div>
+                    }
+                  />
 
-                <div className="mt-8 flex justify-end">
-                  <button
-                    type="button"
-                    className={clsx(
-                      "rounded-full px-5 py-3 text-sm font-semibold transition",
-                      isStepTwoValid
-                        ? "bg-[#63E0A5] text-slate-950 hover:bg-[#4fd390]"
-                        : "cursor-not-allowed bg-slate-200 text-slate-400",
-                    )}
-                    disabled={!isStepTwoValid}
-                    onClick={handleSubmit}
-                  >
-                    Submit request
-                  </button>
-                </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      className={isStepTwoValid ? "rounded-full bg-[#63E0A5] px-6 py-3 text-sm font-semibold text-slate-950" : "cursor-not-allowed rounded-full bg-slate-200 px-6 py-3 text-sm font-semibold text-slate-400"}
+                      disabled={!isStepTwoValid}
+                      onClick={handleSubmit}
+                    >
+                      Submit request
+                    </button>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        {currentStep === 3 && submittedRecord ? (
+          <section className="mt-12 max-w-[980px]">
+            <div className="flex items-start gap-5">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#14473f] text-white">
+                <CheckCircle2 className="size-7" />
               </div>
-            ) : null}
-
-            {currentStep === 3 && submittedRecord ? (
-              <div className="mx-auto max-w-2xl">
-                <div className="rounded-[2rem] border border-emerald-100 bg-emerald-50/40 px-6 py-8">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#14473f] text-white">
-                      <CheckCircle2 className="size-6" />
-                    </div>
-                    <div>
-                      <h2 className="text-3xl font-semibold tracking-tight">Request submitted</h2>
-                      <p className="mt-2 text-[17px] leading-7 text-slate-700">
-                        Thanks for contacting us. We&apos;ll get back to you soon.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6 rounded-[1.5rem] border border-slate-200 bg-white px-6 py-6">
-                  <h3 className="text-xl font-semibold text-slate-900">Summary</h3>
-                  <div className="mt-4 space-y-3 text-sm leading-6 text-slate-700">
-                    <p><span className="font-semibold text-slate-900">Topic:</span> {submittedRecord.topic}</p>
-                    <p><span className="font-semibold text-slate-900">Email:</span> {submittedRecord.email}</p>
-                    {submittedRecord.accountEmail ? (
-                      <p><span className="font-semibold text-slate-900">Account email:</span> {submittedRecord.accountEmail}</p>
-                    ) : null}
-                    {submittedRecord.mailingAddress ? (
-                      <p><span className="font-semibold text-slate-900">Mailing address:</span> {submittedRecord.mailingAddress}</p>
-                    ) : null}
-                    {submittedRecord.resourceLink ? (
-                      <p className="break-words"><span className="font-semibold text-slate-900">Resource link:</span> {submittedRecord.resourceLink}</p>
-                    ) : null}
-                    {submittedRecord.refundReason ? (
-                      <p><span className="font-semibold text-slate-900">Refund reason:</span> {submittedRecord.refundReason}</p>
-                    ) : null}
-                    <p><span className="font-semibold text-slate-900">Message:</span> {submittedRecord.details}</p>
-                    {submittedRecord.attachments.length ? (
-                      <p><span className="font-semibold text-slate-900">Files:</span> {submittedRecord.attachments.join(", ")}</p>
-                    ) : null}
-                  </div>
-
-                  <button
-                    type="button"
-                    className="mt-6 rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-slate-900"
-                    onClick={resetFlow}
-                  >
-                    Start another request
-                  </button>
-                </div>
+              <div>
+                <h2 className="text-4xl font-semibold tracking-tight">Request submitted</h2>
+                <p className="mt-3 text-xl leading-8 text-slate-700">
+                  Thanks for contacting us. We&apos;ll get back to you soon.
+                </p>
               </div>
-            ) : null}
-          </div>
-        </section>
+            </div>
+
+            <div className="mt-8 max-w-[720px] border border-slate-200 bg-white p-6">
+              <div className="space-y-3 text-base leading-7 text-slate-700">
+                <p><span className="font-semibold text-slate-900">Topic:</span> {submittedRecord.topic}</p>
+                <p><span className="font-semibold text-slate-900">Email:</span> {submittedRecord.email}</p>
+                {submittedRecord.accountEmail ? <p><span className="font-semibold text-slate-900">Account email:</span> {submittedRecord.accountEmail}</p> : null}
+                {submittedRecord.mailingAddress ? <p><span className="font-semibold text-slate-900">Mailing address:</span> {submittedRecord.mailingAddress}</p> : null}
+                {submittedRecord.resourceLink ? <p><span className="font-semibold text-slate-900">Resource URL or name:</span> {submittedRecord.resourceLink}</p> : null}
+                {submittedRecord.refundReason ? <p><span className="font-semibold text-slate-900">Refund reason:</span> {submittedRecord.refundReason}</p> : null}
+                <p><span className="font-semibold text-slate-900">Message:</span> {submittedRecord.details}</p>
+                {submittedRecord.attachments.length ? <p><span className="font-semibold text-slate-900">Files:</span> {submittedRecord.attachments.join(", ")}</p> : null}
+              </div>
+
+              <button
+                type="button"
+                className="mt-6 rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700"
+                onClick={resetFlow}
+              >
+                Start another request
+              </button>
+            </div>
+          </section>
+        ) : null}
       </main>
+    </div>
+  );
+}
+
+function FormRow({
+  label,
+  field,
+  required = false,
+  alignTop = false,
+}: {
+  label: string;
+  field: React.ReactNode;
+  required?: boolean;
+  alignTop?: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-[300px_minmax(0,1fr)] md:items-center md:gap-5">
+      <label
+        className={`text-right text-[18px] font-semibold text-slate-700 ${alignTop ? "md:self-start md:pt-3" : ""}`}
+      >
+        {label} {required ? <span className="text-[#1b5e4b]">*</span> : null}
+      </label>
+      <div>{field}</div>
     </div>
   );
 }
