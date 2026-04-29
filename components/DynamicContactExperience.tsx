@@ -17,9 +17,11 @@ type SubmissionRecord = {
   accountEmail: string;
   mailingAddress: {
     street: string;
+    unit: string;
     city: string;
-    state: string;
-    zip: string;
+    region: string;
+    postalCode: string;
+    country: string;
   };
   resourceLink: string;
   refundReason: string;
@@ -95,11 +97,11 @@ function topicHelperCopy(topic: DynamicTopic | "") {
 }
 
 function inputClassName() {
-  return "w-full rounded-none border border-slate-400 bg-white px-3 py-2.5 text-base text-slate-900 outline-none focus:border-[#63E0A5] focus:ring-2 focus:ring-[#dff8ea]";
+  return "w-full rounded-[1.5rem] border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-[0_18px_36px_-30px_rgba(15,23,42,0.16)] outline-none transition focus:border-[#63E0A5] focus:ring-4 focus:ring-[#dff8ea]";
 }
 
 function textAreaClassName() {
-  return "min-h-48 w-full rounded-none border border-slate-300 bg-white px-3 py-3 text-base leading-7 text-slate-900 outline-none focus:border-[#63E0A5] focus:ring-2 focus:ring-[#dff8ea]";
+  return "min-h-48 w-full rounded-[1.5rem] border border-slate-200 bg-white px-4 py-4 text-base leading-7 text-slate-900 shadow-[0_18px_36px_-30px_rgba(15,23,42,0.16)] outline-none transition focus:border-[#63E0A5] focus:ring-4 focus:ring-[#dff8ea]";
 }
 
 export default function DynamicContactExperience() {
@@ -111,9 +113,11 @@ export default function DynamicContactExperience() {
   const [email, setEmail] = useState("");
   const [accountEmail, setAccountEmail] = useState("");
   const [mailingAddressStreet, setMailingAddressStreet] = useState("");
+  const [mailingAddressUnit, setMailingAddressUnit] = useState("");
   const [mailingAddressCity, setMailingAddressCity] = useState("");
-  const [mailingAddressState, setMailingAddressState] = useState("");
-  const [mailingAddressZip, setMailingAddressZip] = useState("");
+  const [mailingAddressRegion, setMailingAddressRegion] = useState("");
+  const [mailingAddressPostalCode, setMailingAddressPostalCode] = useState("");
+  const [mailingAddressCountry, setMailingAddressCountry] = useState("");
   const [resourceLink, setResourceLink] = useState("");
   const [refundReason, setRefundReason] = useState("");
   const [details, setDetails] = useState("");
@@ -154,8 +158,9 @@ export default function DynamicContactExperience() {
         accountEmail.trim() &&
         mailingAddressStreet.trim() &&
         mailingAddressCity.trim() &&
-        mailingAddressState.trim() &&
-        mailingAddressZip.trim(),
+        mailingAddressRegion.trim() &&
+        mailingAddressPostalCode.trim() &&
+        mailingAddressCountry.trim(),
       );
     }
 
@@ -168,9 +173,11 @@ export default function DynamicContactExperience() {
     accountEmail,
     details,
     mailingAddressCity,
-    mailingAddressState,
+    mailingAddressCountry,
+    mailingAddressPostalCode,
+    mailingAddressRegion,
     mailingAddressStreet,
-    mailingAddressZip,
+    mailingAddressUnit,
     refundReason,
     resourceLink,
     topic,
@@ -184,9 +191,11 @@ export default function DynamicContactExperience() {
     setEmail("");
     setAccountEmail("");
     setMailingAddressStreet("");
+    setMailingAddressUnit("");
     setMailingAddressCity("");
-    setMailingAddressState("");
-    setMailingAddressZip("");
+    setMailingAddressRegion("");
+    setMailingAddressPostalCode("");
+    setMailingAddressCountry("");
     setResourceLink("");
     setRefundReason("");
     setDetails("");
@@ -211,9 +220,11 @@ export default function DynamicContactExperience() {
       accountEmail: accountEmail.trim(),
       mailingAddress: {
         street: mailingAddressStreet.trim(),
+        unit: mailingAddressUnit.trim(),
         city: mailingAddressCity.trim(),
-        state: mailingAddressState.trim(),
-        zip: mailingAddressZip.trim(),
+        region: mailingAddressRegion.trim(),
+        postalCode: mailingAddressPostalCode.trim(),
+        country: mailingAddressCountry.trim(),
       },
       resourceLink: resourceLink.trim(),
       refundReason: refundReason.trim(),
@@ -335,23 +346,6 @@ export default function DynamicContactExperience() {
 
         {currentStep !== 3 ? (
           <section className="mt-10 max-w-[980px] rounded-[28px] border border-slate-200 bg-[#fcfffd] p-8 shadow-[0_30px_80px_-58px_rgba(15,23,42,0.38)]">
-            <div className="mb-6 flex flex-wrap items-center gap-3 text-sm">
-              <button
-                type="button"
-                className={authState === "logged_out" ? "rounded-full bg-[#14473f] px-4 py-2 font-medium text-white" : "rounded-full border border-slate-300 px-4 py-2 font-medium text-slate-700"}
-                onClick={() => setAuthState("logged_out")}
-              >
-                Logged out
-              </button>
-              <button
-                type="button"
-                className={authState === "logged_in" ? "rounded-full bg-[#63E0A5] px-4 py-2 font-medium text-slate-950" : "rounded-full border border-slate-300 px-4 py-2 font-medium text-slate-700"}
-                onClick={() => setAuthState("logged_in")}
-              >
-                Logged in demo
-              </button>
-            </div>
-
             {currentStep === 2 ? (
               <div className="mb-8 flex flex-wrap items-center gap-5">
                 <button
@@ -378,10 +372,10 @@ export default function DynamicContactExperience() {
                   <FormRow
                     label="Topic:"
                     required
-                    field={
-                      <div className="relative">
-                        <select
-                          className={`${inputClassName()} appearance-none pr-12`}
+                      field={
+                        <div className="relative">
+                          <select
+                            className={`${inputClassName()} appearance-none pr-12`}
                           value={topic}
                           onChange={(event) => setTopic(event.target.value as DynamicTopic | "")}
                         >
@@ -428,7 +422,7 @@ export default function DynamicContactExperience() {
                     <FormRow
                       label="Account:"
                       field={
-                        <div className="border border-emerald-200 bg-emerald-50 px-4 py-3 text-base text-slate-700">
+                        <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-base text-slate-700 shadow-[0_18px_36px_-30px_rgba(15,23,42,0.12)]">
                           Using {LOGGED_IN_PROFILE.name} ({LOGGED_IN_PROFILE.email})
                         </div>
                       }
@@ -476,6 +470,13 @@ export default function DynamicContactExperience() {
                               value={mailingAddressStreet}
                               onChange={(event) => setMailingAddressStreet(event.target.value)}
                             />
+                            <input
+                              type="text"
+                              className={inputClassName()}
+                              placeholder="Apartment, suite, or unit (optional)"
+                              value={mailingAddressUnit}
+                              onChange={(event) => setMailingAddressUnit(event.target.value)}
+                            />
                             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_120px_140px]">
                               <input
                                 type="text"
@@ -487,18 +488,25 @@ export default function DynamicContactExperience() {
                               <input
                                 type="text"
                                 className={inputClassName()}
-                                placeholder="State"
-                                value={mailingAddressState}
-                                onChange={(event) => setMailingAddressState(event.target.value)}
+                                placeholder="State / province / region"
+                                value={mailingAddressRegion}
+                                onChange={(event) => setMailingAddressRegion(event.target.value)}
                               />
                               <input
                                 type="text"
                                 className={inputClassName()}
-                                placeholder="ZIP code"
-                                value={mailingAddressZip}
-                                onChange={(event) => setMailingAddressZip(event.target.value)}
+                                placeholder="Postal code"
+                                value={mailingAddressPostalCode}
+                                onChange={(event) => setMailingAddressPostalCode(event.target.value)}
                               />
                             </div>
+                            <input
+                              type="text"
+                              className={inputClassName()}
+                              placeholder="Country / region"
+                              value={mailingAddressCountry}
+                              onChange={(event) => setMailingAddressCountry(event.target.value)}
+                            />
                           </div>
                         }
                       />
@@ -567,7 +575,7 @@ export default function DynamicContactExperience() {
                       <div>
                         <label
                           htmlFor="file-upload"
-                          className="inline-flex cursor-pointer items-center gap-2 border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700"
+                          className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-[0_18px_36px_-30px_rgba(15,23,42,0.16)] transition hover:border-emerald-300 hover:bg-emerald-50"
                         >
                           <Paperclip className="size-4 text-[#1b5e4b]" />
                           Upload file if needed
@@ -605,8 +613,26 @@ export default function DynamicContactExperience() {
                 </>
               ) : null}
             </div>
-            <div className="mt-10 border-t border-slate-200 pt-5 text-sm leading-6 text-slate-500">
-              This experience is powered by AI. AI can make mistakes.
+            <div className="mt-10 border-t border-slate-200 pt-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                <p className="text-slate-600">Account status for this demo</p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    className={authState === "logged_out" ? "rounded-full bg-[#14473f] px-4 py-2 font-medium text-white" : "rounded-full border border-slate-300 px-4 py-2 font-medium text-slate-700"}
+                    onClick={() => setAuthState("logged_out")}
+                  >
+                    Logged out
+                  </button>
+                  <button
+                    type="button"
+                    className={authState === "logged_in" ? "rounded-full bg-[#63E0A5] px-4 py-2 font-medium text-slate-950" : "rounded-full border border-slate-300 px-4 py-2 font-medium text-slate-700"}
+                    onClick={() => setAuthState("logged_in")}
+                  >
+                    Logged in demo
+                  </button>
+                </div>
+              </div>
             </div>
           </section>
         ) : null}
@@ -633,7 +659,9 @@ export default function DynamicContactExperience() {
                 {submittedRecord.mailingAddress.street ? (
                   <p>
                     <span className="font-semibold text-slate-900">Mailing address:</span>{" "}
-                    {submittedRecord.mailingAddress.street}, {submittedRecord.mailingAddress.city}, {submittedRecord.mailingAddress.state} {submittedRecord.mailingAddress.zip}
+                    {submittedRecord.mailingAddress.street}
+                    {submittedRecord.mailingAddress.unit ? `, ${submittedRecord.mailingAddress.unit}` : ""}
+                    {`, ${submittedRecord.mailingAddress.city}, ${submittedRecord.mailingAddress.region} ${submittedRecord.mailingAddress.postalCode}, ${submittedRecord.mailingAddress.country}`}
                   </p>
                 ) : null}
                 {submittedRecord.resourceLink ? <p><span className="font-semibold text-slate-900">Resource URL or name:</span> {submittedRecord.resourceLink}</p> : null}
@@ -649,9 +677,6 @@ export default function DynamicContactExperience() {
               >
                 Start another request
               </button>
-            </div>
-            <div className="mt-8 text-sm leading-6 text-slate-500">
-              This experience is powered by AI. AI can make mistakes.
             </div>
           </section>
         ) : null}

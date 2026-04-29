@@ -1,6 +1,15 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
-import { Apple, MessageCircleQuestion, Send, Star, X } from "lucide-react";
+import {
+  Apple,
+  MessageCircleQuestion,
+  Plus,
+  RotateCcw,
+  Send,
+  SquarePen,
+  Star,
+  X,
+} from "lucide-react";
 
 export type ChatUserType = "Buyer" | "Seller" | "Publisher" | "Other";
 
@@ -34,10 +43,12 @@ export type ChatHandoffContext = {
 
 type CxChatWidgetProps = {
   onEscalate: (context: ChatHandoffContext) => void;
+  openRequestKey?: number;
 };
 
-const GREETING = "Hi! How can I help you today?";
-const USERTYPE_PROMPT = "How are you reaching out today?";
+const GREETING = "Hi! I'm TPT bot.";
+const INTRO_PROMPT =
+  "Start with a common question below or type your own message for fast help.";
 const STARTER_QUESTIONS = [
   "I need help logging in",
   "I'm having issues printing a file",
@@ -171,13 +182,13 @@ function renderFormattedText(content: string, keyPrefix: string) {
   });
 }
 
-export function CxChatWidget({ onEscalate }: CxChatWidgetProps) {
+export function CxChatWidget({ onEscalate, openRequestKey }: CxChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
   const [stage, setStage] = useState<ChatStage>("awaiting_usertype");
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: buildId(), role: "assistant", content: GREETING },
-    { id: buildId(), role: "assistant", content: USERTYPE_PROMPT },
+    { id: buildId(), role: "assistant", content: INTRO_PROMPT },
   ]);
   const [modelMessages, setModelMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -197,6 +208,13 @@ export function CxChatWidget({ onEscalate }: CxChatWidgetProps) {
     const timer = window.setTimeout(() => setShowTooltip(false), 3500);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (openRequestKey !== undefined) {
+      setIsOpen(true);
+      setShowTooltip(false);
+    }
+  }, [openRequestKey]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -262,7 +280,7 @@ export function CxChatWidget({ onEscalate }: CxChatWidgetProps) {
     setStage("awaiting_usertype");
     setMessages([
       { id: buildId(), role: "assistant", content: GREETING },
-      { id: buildId(), role: "assistant", content: USERTYPE_PROMPT },
+      { id: buildId(), role: "assistant", content: INTRO_PROMPT },
     ]);
     setModelMessages([]);
     setInput("");
@@ -409,17 +427,18 @@ export function CxChatWidget({ onEscalate }: CxChatWidgetProps) {
   }
 
   function handleUserTypeSelect(nextUserType: ChatUserType) {
-    if (userType) {
-      setStage("initial");
+    if (userType === nextUserType && stage === "initial") {
       return;
     }
 
     setUserType(nextUserType);
-    appendMessage("user", nextUserType);
-    appendMessage(
-      "assistant",
-      `Thanks. What can I help you with today as a ${nextUserType.toLowerCase()}? You can pick one of the common questions below or type your own.`,
-    );
+    if (!userType) {
+      appendMessage("user", nextUserType);
+      appendMessage(
+        "assistant",
+        `Thanks. I’ll tailor help for ${nextUserType.toLowerCase()} questions. Pick a common question below or type your own.`,
+      );
+    }
     setStage("initial");
   }
 
@@ -517,6 +536,14 @@ export function CxChatWidget({ onEscalate }: CxChatWidgetProps) {
     Boolean(userType);
   const panelBottom = isOpen ? Math.max(16, keyboardInset + 16) : 112;
   const panelHeight = `min(620px, calc(100dvh - ${keyboardInset + 32}px))`;
+  const showWelcomeState =
+    !isLoading &&
+    messages.length <= 2 &&
+    !originalQuestion &&
+    !restatedQuestion &&
+    stage !== "awaiting_resolution" &&
+    stage !== "awaiting_rating" &&
+    stage !== "escalated";
 
   return (
     <>
@@ -543,44 +570,94 @@ export function CxChatWidget({ onEscalate }: CxChatWidgetProps) {
 
       {isOpen ? (
         <section
-          className="fixed left-3 right-3 z-50 flex flex-col overflow-hidden rounded-[2rem] border border-emerald-100 bg-[#f7fbf8] shadow-[0_40px_90px_-42px_rgba(15,23,42,0.45)] sm:left-auto sm:right-6 sm:w-[400px]"
+          className="fixed left-3 right-3 z-50 flex flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_42px_100px_-44px_rgba(15,23,42,0.34)] sm:left-auto sm:right-6 sm:w-[430px]"
           style={{ bottom: `${panelBottom}px`, height: panelHeight }}
         >
-          <header className="border-b border-emerald-100 bg-[linear-gradient(180deg,#194f44_0%,#14473f_100%)] px-5 py-4 text-white">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/12 shadow-inner">
-                  <Apple className="size-5" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-100">
-                    TPT bot
-                  </p>
-                  <p className="mt-1 text-sm text-emerald-50/90">Instant support</p>
-                </div>
+          <header className="flex items-center justify-between px-6 py-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#14473f] text-white">
+                <Apple className="size-5" />
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:bg-white/15"
-                  onClick={resetConversation}
-                >
-                  Reset
-                </button>
-                <button
-                  type="button"
-                  aria-label="Close TPT CX chat"
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white transition hover:bg-white/15"
-                  onClick={() => setIsOpen(false)}
-                >
-                  <X className="size-5" />
-                </button>
+              <div>
+                <p className="text-sm font-semibold text-slate-900">TPT bot</p>
               </div>
+            </div>
+            <div className="flex items-center gap-2 text-slate-500">
+              <button
+                type="button"
+                className="flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-slate-100 hover:text-slate-900"
+                aria-label="New conversation"
+                onClick={resetConversation}
+              >
+                <SquarePen className="size-6" />
+              </button>
+              <button
+                type="button"
+                className="flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-slate-100 hover:text-slate-900"
+                aria-label="Reset conversation"
+                onClick={resetConversation}
+              >
+                <RotateCcw className="size-6" />
+              </button>
+              <button
+                type="button"
+                aria-label="Close TPT CX chat"
+                className="flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-slate-100 hover:text-slate-900"
+                onClick={() => setIsOpen(false)}
+              >
+                <X className="size-7" />
+              </button>
             </div>
           </header>
 
-          <div className="flex-1 space-y-4 overflow-y-auto bg-[radial-gradient(circle_at_top,#f4fbf7_0%,#f8faf8_58%,#f5f7f6_100%)] px-4 py-4">
-            {messages.map((message) => {
+          <div className="flex-1 overflow-y-auto px-4 pb-4 pt-1">
+            {showWelcomeState ? (
+              <div className="flex min-h-full flex-col justify-start px-2 pb-6 pt-2">
+                <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.2)]">
+                  <p className="text-sm font-semibold text-slate-900">Who are you?</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(["Buyer", "Seller", "Publisher", "Other"] as ChatUserType[]).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        className={clsx(
+                          "rounded-full border px-3 py-2 text-sm font-medium transition",
+                          userType === option
+                            ? "border-[#14473f] bg-[#14473f] text-white"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:bg-emerald-50",
+                        )}
+                        onClick={() => handleUserTypeSelect(option)}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {userType ? (
+                  <div className="mt-4 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.2)]">
+                    <p className="text-sm font-semibold text-slate-900">Popular questions</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                      Choose one to get started, or type your own question below.
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {STARTER_QUESTIONS.map((question) => (
+                        <button
+                          key={question}
+                          type="button"
+                          className="rounded-full bg-[#f3f4f6] px-3 py-2 text-sm font-medium text-slate-800 transition hover:bg-slate-200"
+                          onClick={() => handleStarterQuestionSelect(question)}
+                        >
+                          {question}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {messages.map((message) => {
               const isAssistant = message.role === "assistant";
               return (
                 <div
@@ -589,137 +666,148 @@ export function CxChatWidget({ onEscalate }: CxChatWidgetProps) {
                 >
                   <div
                     className={clsx(
-                      "max-w-[88%] whitespace-pre-wrap break-words rounded-[1.35rem] px-4 py-3 text-sm leading-6 shadow-sm",
+                      "max-w-[88%] whitespace-pre-wrap break-words rounded-[1.35rem] px-4 py-3 text-sm leading-6",
                       isAssistant
-                        ? "rounded-tl-md border border-emerald-100 bg-white text-slate-700 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.3)]"
-                        : "rounded-tr-md bg-[#14473f] text-white shadow-[0_18px_36px_-24px_rgba(20,71,63,0.75)]",
+                        ? "rounded-tl-md border border-slate-200 bg-[#fafafa] text-slate-700"
+                        : "rounded-tr-md bg-[#14473f] text-white shadow-[0_18px_36px_-24px_rgba(20,71,63,0.4)]",
                     )}
                   >
                     {renderMessageContent(message.content)}
                   </div>
                 </div>
               );
-            })}
+                })}
 
-            {isLoading ? (
-              <div className="flex justify-start">
-                <div className="flex items-center gap-1 rounded-[1.35rem] rounded-tl-md border border-emerald-100 bg-white px-4 py-3 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.3)]">
-                  {[0, 1, 2].map((dot) => (
-                    <span
-                      key={dot}
-                      className="h-2 w-2 animate-bounce rounded-full bg-emerald-500"
-                      style={{ animationDelay: `${dot * 0.15}s` }}
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : null}
+                {isLoading ? (
+                  <div className="flex justify-start">
+                    <div className="flex items-center gap-1 rounded-[1.35rem] rounded-tl-md border border-slate-200 bg-[#fafafa] px-4 py-3">
+                      {[0, 1, 2].map((dot) => (
+                        <span
+                          key={dot}
+                          className="h-2 w-2 animate-bounce rounded-full bg-emerald-500"
+                          style={{ animationDelay: `${dot * 0.15}s` }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
 
-            {!userType ? (
-              <div className="rounded-[1.35rem] border border-emerald-100 bg-white p-4 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.3)]">
-                <p className="text-sm font-semibold text-slate-900">How are you reaching out?</p>
-                <p className="mt-1 text-sm leading-6 text-slate-600">
-                  Choose the option that fits best so I can give you the right help.
-                </p>
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  {(["Buyer", "Seller", "Publisher", "Other"] as ChatUserType[]).map((option) => (
+                {(stage === "awaiting_usertype" || stage === "initial" || stage === "awaiting_rephrase") ? (
+                  <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4">
+                    <p className="text-sm font-semibold text-slate-900">Who are you?</p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {(["Buyer", "Seller", "Publisher", "Other"] as ChatUserType[]).map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          className={clsx(
+                            "rounded-full border px-3 py-2 text-sm font-medium transition",
+                            userType === option
+                              ? "border-[#14473f] bg-[#14473f] text-white"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:bg-emerald-50",
+                          )}
+                          onClick={() => handleUserTypeSelect(option)}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {userType && stage === "initial" && !originalQuestion && !isLoading ? (
+                  <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4">
+                    <p className="text-sm font-semibold text-slate-900">Popular questions</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                      Start with one of these, or type your own question below.
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {STARTER_QUESTIONS.map((question) => (
+                        <button
+                          key={question}
+                          type="button"
+                          className="rounded-full bg-[#f3f4f6] px-3 py-2 text-sm font-medium text-slate-800 transition hover:bg-slate-200"
+                          onClick={() => handleStarterQuestionSelect(question)}
+                        >
+                          {question}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {stage === "awaiting_resolution" ? (
+                  <div className="grid grid-cols-2 gap-2">
                     <button
-                      key={option}
                       type="button"
-                      className="rounded-full border border-emerald-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50"
-                      onClick={() => handleUserTypeSelect(option)}
+                      className="rounded-full bg-[#63E0A5] px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-[#4ed591]"
+                      onClick={() => handleHelpful(true)}
                     >
-                      {option}
+                      Yes
                     </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            {userType && stage === "initial" && !originalQuestion && !isLoading ? (
-              <div className="rounded-[1.35rem] border border-emerald-100 bg-white p-4 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.3)]">
-                <p className="text-sm font-semibold text-slate-900">Popular questions</p>
-                <p className="mt-1 text-sm leading-6 text-slate-600">
-                  Start with one of these, or type your own question below.
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {STARTER_QUESTIONS.map((question) => (
                     <button
-                      key={question}
                       type="button"
-                      className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-[#14473f] transition hover:border-emerald-300 hover:bg-emerald-100"
-                      onClick={() => handleStarterQuestionSelect(question)}
+                      className="rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400"
+                      onClick={() => handleHelpful(false)}
                     >
-                      {question}
+                      No
                     </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
+                  </div>
+                ) : null}
 
-            {stage === "awaiting_resolution" ? (
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  className="rounded-full bg-[#63E0A5] px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-[#4ed591]"
-                  onClick={() => handleHelpful(true)}
-                >
-                  Yes
-                </button>
-                <button
-                  type="button"
-                  className="rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400"
-                  onClick={() => handleHelpful(false)}
-                >
-                  No
-                </button>
-              </div>
-            ) : null}
+                {stage === "awaiting_rating" ? (
+                  <div className="flex items-center justify-center gap-2">
+                    {[1, 2, 3, 4, 5].map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className={clsx(
+                          "rounded-full border p-3 transition",
+                          value <= (rating ?? 0)
+                            ? "border-amber-300 bg-amber-50 text-amber-500"
+                            : "border-amber-200 bg-white text-amber-500 hover:bg-amber-50",
+                          rating !== null && "cursor-not-allowed",
+                        )}
+                        onClick={() => handleRatingSelect(value)}
+                        aria-label={`Rate ${value} stars`}
+                        disabled={rating !== null}
+                      >
+                        <Star className={clsx("size-5", value <= (rating ?? 0) && "fill-current")} />
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
 
-            {stage === "awaiting_rating" ? (
-              <div className="flex items-center justify-center gap-2">
-                {[1, 2, 3, 4, 5].map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={clsx(
-                      "rounded-full border p-3 transition",
-                      value <= (rating ?? 0)
-                        ? "border-amber-300 bg-amber-50 text-amber-500"
-                        : "border-amber-200 bg-white text-amber-500 hover:bg-amber-50",
-                      rating !== null && "cursor-not-allowed",
-                    )}
-                    onClick={() => handleRatingSelect(value)}
-                    aria-label={`Rate ${value} stars`}
-                    disabled={rating !== null}
-                  >
-                    <Star className={clsx("size-5", value <= (rating ?? 0) && "fill-current")} />
-                  </button>
-                ))}
-              </div>
-            ) : null}
+                {stage === "escalated" ? (
+                  <div className="rounded-[1.35rem] border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-slate-700">
+                    We opened the matching contact flow so you can finish the handoff there.
+                  </div>
+                ) : null}
 
-            {stage === "escalated" ? (
-              <div className="rounded-[1.35rem] border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-slate-700">
-                We opened the matching contact flow so you can finish the handoff there.
+                <div ref={bottomRef} />
               </div>
-            ) : null}
-
-            <div ref={bottomRef} />
+            )}
           </div>
 
           <form
             onSubmit={handleSend}
-            className="border-t border-emerald-100 bg-white px-4 py-4"
+            className="border-t border-slate-100 bg-white px-5 pb-5 pt-4"
           >
-            <div className="flex items-end gap-2">
+            <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-3 shadow-[0_18px_36px_-30px_rgba(15,23,42,0.24)]">
+              <button
+                type="button"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-800 transition hover:bg-slate-100"
+                aria-label="Add context"
+              >
+                <Plus className="size-6" />
+              </button>
               <textarea
                 ref={inputRef}
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 placeholder={
                   !userType
-                    ? "Select Buyer, Seller, or Publisher to begin"
+                    ? "Select Buyer, Seller, Publisher, or Other first"
                     : canType
                     ? stage === "awaiting_rephrase"
                       ? "Restate your question..."
@@ -730,19 +818,19 @@ export function CxChatWidget({ onEscalate }: CxChatWidgetProps) {
                 rows={1}
                 enterKeyHint="send"
                 onKeyDown={handleComposerKeyDown}
-                className="max-h-32 min-h-[48px] flex-1 resize-none rounded-[1.5rem] border border-emerald-100 bg-[#f8fbf9] px-4 py-3 text-sm leading-6 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+                className="max-h-32 min-h-[28px] flex-1 resize-none bg-transparent px-1 py-1 text-sm leading-6 text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:text-slate-400"
               />
               <button
                 type="submit"
                 disabled={!canType || !input.trim() || isLoading}
-                className="flex h-11 w-11 items-center justify-center rounded-full bg-[#14473f] text-white transition hover:bg-[#1d5d53] disabled:cursor-not-allowed disabled:bg-slate-300"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#171717] text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
                 aria-label="Send message"
               >
                 <Send className="size-4" />
               </button>
             </div>
-            <p className="mt-3 px-1 text-xs leading-5 text-slate-500">
-              This experience is powered by AI. AI can make mistakes.
+            <p className="mt-4 text-center text-xs leading-5 text-slate-500">
+              AI support can make mistakes
             </p>
           </form>
         </section>
