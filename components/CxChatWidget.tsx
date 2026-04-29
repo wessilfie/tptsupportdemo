@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
-import { MessageCircleQuestion, Send, Star, X } from "lucide-react";
+import { Apple, MessageCircleQuestion, Send, Star, X } from "lucide-react";
 
 export type ChatUserType = "Buyer" | "Seller" | "Publisher" | "Other";
 
@@ -37,7 +37,12 @@ type CxChatWidgetProps = {
 };
 
 const GREETING = "Hi! How can I help you today?";
-const USERTYPE_PROMPT = "Are you reaching out as a Buyer, Seller, or Publisher?";
+const USERTYPE_PROMPT = "How are you reaching out today?";
+const STARTER_QUESTIONS = [
+  "I need help logging in",
+  "I'm having issues printing a file",
+  "I need assistance purchasing",
+] as const;
 const MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/gi;
 const URL_PATTERN = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
 const BOLD_PATTERN = /(\*\*[^*]+\*\*)/g;
@@ -413,9 +418,23 @@ export function CxChatWidget({ onEscalate }: CxChatWidgetProps) {
     appendMessage("user", nextUserType);
     appendMessage(
       "assistant",
-      `Great! How can I assist you today with your ${nextUserType.toLowerCase()} related questions?`,
+      `Thanks. What can I help you with today as a ${nextUserType.toLowerCase()}? You can pick one of the common questions below or type your own.`,
     );
     setStage("initial");
+  }
+
+  function handleStarterQuestionSelect(question: string) {
+    if (!canType || isLoading) {
+      return;
+    }
+
+    appendMessage("user", question);
+
+    if (!originalQuestion) {
+      setOriginalQuestion(question);
+    }
+
+    void requestAnswer(question);
   }
 
   function handleHelpful(approved: boolean) {
@@ -504,7 +523,7 @@ export function CxChatWidget({ onEscalate }: CxChatWidgetProps) {
       {!isOpen ? (
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
         {showTooltip && !isOpen ? (
-          <div className="max-w-[240px] rounded-2xl bg-white px-4 py-3 text-sm leading-6 text-slate-700 shadow-[0_20px_50px_-24px_rgba(15,23,42,0.3)]">
+          <div className="max-w-[260px] rounded-[1.4rem] border border-emerald-100 bg-white px-4 py-3 text-sm leading-6 text-slate-700 shadow-[0_24px_60px_-28px_rgba(15,23,42,0.28)]">
             I&apos;m the TPT CX Bot. Ask me a question for instant support.
           </div>
         ) : null}
@@ -524,41 +543,43 @@ export function CxChatWidget({ onEscalate }: CxChatWidgetProps) {
 
       {isOpen ? (
         <section
-          className="fixed left-3 right-3 z-50 flex flex-col overflow-hidden rounded-[2rem] border border-white/70 bg-white shadow-[0_40px_90px_-42px_rgba(15,23,42,0.45)] sm:left-auto sm:right-6 sm:w-[390px]"
+          className="fixed left-3 right-3 z-50 flex flex-col overflow-hidden rounded-[2rem] border border-emerald-100 bg-[#f7fbf8] shadow-[0_40px_90px_-42px_rgba(15,23,42,0.45)] sm:left-auto sm:right-6 sm:w-[400px]"
           style={{ bottom: `${panelBottom}px`, height: panelHeight }}
         >
-          <header className="flex items-center justify-between gap-3 bg-[#14473f] px-5 py-4 text-white">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10">
-                <span className="text-sm font-bold">T</span>
+          <header className="border-b border-emerald-100 bg-[linear-gradient(180deg,#194f44_0%,#14473f_100%)] px-5 py-4 text-white">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/12 shadow-inner">
+                  <Apple className="size-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-100">
+                    TPT bot
+                  </p>
+                  <p className="mt-1 text-sm text-emerald-50/90">Instant support</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-100">
-                  TPT CX Bot
-                </p>
-                <p className="text-sm text-emerald-50/90">Instant support</p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:bg-white/15"
+                  onClick={resetConversation}
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  aria-label="Close TPT CX chat"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white transition hover:bg-white/15"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <X className="size-5" />
+                </button>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:bg-white/15"
-                onClick={resetConversation}
-              >
-                Reset
-              </button>
-              <button
-                type="button"
-                aria-label="Close TPT CX chat"
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white transition hover:bg-white/15"
-                onClick={() => setIsOpen(false)}
-              >
-                <X className="size-5" />
-              </button>
             </div>
           </header>
 
-          <div className="flex-1 space-y-4 overflow-y-auto bg-[#f8faf8] px-4 py-4">
+          <div className="flex-1 space-y-4 overflow-y-auto bg-[radial-gradient(circle_at_top,#f4fbf7_0%,#f8faf8_58%,#f5f7f6_100%)] px-4 py-4">
             {messages.map((message) => {
               const isAssistant = message.role === "assistant";
               return (
@@ -568,10 +589,10 @@ export function CxChatWidget({ onEscalate }: CxChatWidgetProps) {
                 >
                   <div
                     className={clsx(
-                      "max-w-[88%] whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm",
+                      "max-w-[88%] whitespace-pre-wrap break-words rounded-[1.35rem] px-4 py-3 text-sm leading-6 shadow-sm",
                       isAssistant
-                        ? "rounded-tl-sm bg-white text-slate-700"
-                        : "rounded-tr-sm bg-[#14473f] text-white",
+                        ? "rounded-tl-md border border-emerald-100 bg-white text-slate-700 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.3)]"
+                        : "rounded-tr-md bg-[#14473f] text-white shadow-[0_18px_36px_-24px_rgba(20,71,63,0.75)]",
                     )}
                   >
                     {renderMessageContent(message.content)}
@@ -582,7 +603,7 @@ export function CxChatWidget({ onEscalate }: CxChatWidgetProps) {
 
             {isLoading ? (
               <div className="flex justify-start">
-                <div className="flex items-center gap-1 rounded-2xl rounded-tl-sm bg-white px-4 py-3 shadow-sm">
+                <div className="flex items-center gap-1 rounded-[1.35rem] rounded-tl-md border border-emerald-100 bg-white px-4 py-3 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.3)]">
                   {[0, 1, 2].map((dot) => (
                     <span
                       key={dot}
@@ -595,17 +616,44 @@ export function CxChatWidget({ onEscalate }: CxChatWidgetProps) {
             ) : null}
 
             {!userType ? (
-              <div className="grid grid-cols-2 gap-2">
-                {(["Buyer", "Seller", "Publisher", "Other"] as ChatUserType[]).map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    className="rounded-full border border-emerald-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50"
-                    onClick={() => handleUserTypeSelect(option)}
-                  >
-                    {option}
-                  </button>
-                ))}
+              <div className="rounded-[1.35rem] border border-emerald-100 bg-white p-4 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.3)]">
+                <p className="text-sm font-semibold text-slate-900">How are you reaching out?</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  Choose the option that fits best so I can give you the right help.
+                </p>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  {(["Buyer", "Seller", "Publisher", "Other"] as ChatUserType[]).map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      className="rounded-full border border-emerald-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50"
+                      onClick={() => handleUserTypeSelect(option)}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {userType && stage === "initial" && !originalQuestion && !isLoading ? (
+              <div className="rounded-[1.35rem] border border-emerald-100 bg-white p-4 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.3)]">
+                <p className="text-sm font-semibold text-slate-900">Popular questions</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  Start with one of these, or type your own question below.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {STARTER_QUESTIONS.map((question) => (
+                    <button
+                      key={question}
+                      type="button"
+                      className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-[#14473f] transition hover:border-emerald-300 hover:bg-emerald-100"
+                      onClick={() => handleStarterQuestionSelect(question)}
+                    >
+                      {question}
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : null}
 
@@ -652,7 +700,7 @@ export function CxChatWidget({ onEscalate }: CxChatWidgetProps) {
             ) : null}
 
             {stage === "escalated" ? (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-slate-700">
+              <div className="rounded-[1.35rem] border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-slate-700">
                 We opened the matching contact flow so you can finish the handoff there.
               </div>
             ) : null}
@@ -662,7 +710,7 @@ export function CxChatWidget({ onEscalate }: CxChatWidgetProps) {
 
           <form
             onSubmit={handleSend}
-            className="border-t border-slate-100 bg-white px-4 py-4"
+            className="border-t border-emerald-100 bg-white px-4 py-4"
           >
             <div className="flex items-end gap-2">
               <textarea
@@ -682,7 +730,7 @@ export function CxChatWidget({ onEscalate }: CxChatWidgetProps) {
                 rows={1}
                 enterKeyHint="send"
                 onKeyDown={handleComposerKeyDown}
-                className="max-h-32 min-h-[48px] flex-1 resize-none rounded-[1.5rem] border border-slate-300 px-4 py-3 text-sm leading-6 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+                className="max-h-32 min-h-[48px] flex-1 resize-none rounded-[1.5rem] border border-emerald-100 bg-[#f8fbf9] px-4 py-3 text-sm leading-6 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
               />
               <button
                 type="submit"
@@ -693,6 +741,9 @@ export function CxChatWidget({ onEscalate }: CxChatWidgetProps) {
                 <Send className="size-4" />
               </button>
             </div>
+            <p className="mt-3 px-1 text-xs leading-5 text-slate-500">
+              This experience is powered by AI. AI can make mistakes.
+            </p>
           </form>
         </section>
       ) : null}
