@@ -3,6 +3,8 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CheckCircle2, ChevronDown, Link as LinkIcon, Paperclip, Search, ShoppingCart } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { CxChatWidget } from "./CxChatWidget";
+import type { ChatHandoffContext } from "./CxChatWidget";
 
 type AuthState = "logged_in" | "logged_out";
 type DynamicTopic = "Issues with Logging In" | "Refund" | "Question about TPT" | "Other";
@@ -13,7 +15,12 @@ type SubmissionRecord = {
   name: string;
   email: string;
   accountEmail: string;
-  mailingAddress: string;
+  mailingAddress: {
+    street: string;
+    city: string;
+    state: string;
+    zip: string;
+  };
   resourceLink: string;
   refundReason: string;
   details: string;
@@ -103,7 +110,10 @@ export default function DynamicContactExperience() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [accountEmail, setAccountEmail] = useState("");
-  const [mailingAddress, setMailingAddress] = useState("");
+  const [mailingAddressStreet, setMailingAddressStreet] = useState("");
+  const [mailingAddressCity, setMailingAddressCity] = useState("");
+  const [mailingAddressState, setMailingAddressState] = useState("");
+  const [mailingAddressZip, setMailingAddressZip] = useState("");
   const [resourceLink, setResourceLink] = useState("");
   const [refundReason, setRefundReason] = useState("");
   const [details, setDetails] = useState("");
@@ -119,6 +129,8 @@ export default function DynamicContactExperience() {
 
   const source = searchParams.get("source");
   const showIdentityFields = authState === "logged_out";
+  const currentStepLabel =
+    currentStep === 1 ? "Step 1 of 3: Contact" : currentStep === 2 ? "Step 2 of 3: Details" : "Step 3 of 3: Sent";
 
   const isStepOneValid = useMemo(() => {
     if (!topic) {
@@ -138,7 +150,13 @@ export default function DynamicContactExperience() {
     }
 
     if (topic === "Issues with Logging In") {
-      return Boolean(accountEmail.trim() && mailingAddress.trim());
+      return Boolean(
+        accountEmail.trim() &&
+        mailingAddressStreet.trim() &&
+        mailingAddressCity.trim() &&
+        mailingAddressState.trim() &&
+        mailingAddressZip.trim(),
+      );
     }
 
     if (topic === "Refund") {
@@ -146,7 +164,17 @@ export default function DynamicContactExperience() {
     }
 
     return true;
-  }, [accountEmail, details, mailingAddress, refundReason, resourceLink, topic]);
+  }, [
+    accountEmail,
+    details,
+    mailingAddressCity,
+    mailingAddressState,
+    mailingAddressStreet,
+    mailingAddressZip,
+    refundReason,
+    resourceLink,
+    topic,
+  ]);
 
   function resetFlow() {
     setAuthState("logged_out");
@@ -155,7 +183,10 @@ export default function DynamicContactExperience() {
     setName("");
     setEmail("");
     setAccountEmail("");
-    setMailingAddress("");
+    setMailingAddressStreet("");
+    setMailingAddressCity("");
+    setMailingAddressState("");
+    setMailingAddressZip("");
     setResourceLink("");
     setRefundReason("");
     setDetails("");
@@ -178,13 +209,49 @@ export default function DynamicContactExperience() {
       name: showIdentityFields ? name.trim() : LOGGED_IN_PROFILE.name,
       email: showIdentityFields ? email.trim() : LOGGED_IN_PROFILE.email,
       accountEmail: accountEmail.trim(),
-      mailingAddress: mailingAddress.trim(),
+      mailingAddress: {
+        street: mailingAddressStreet.trim(),
+        city: mailingAddressCity.trim(),
+        state: mailingAddressState.trim(),
+        zip: mailingAddressZip.trim(),
+      },
       resourceLink: resourceLink.trim(),
       refundReason: refundReason.trim(),
       details: details.trim(),
       attachments: attachments.map((file) => file.name),
     });
     setCurrentStep(3);
+  }
+
+  function inferDynamicContactTopic(context: ChatHandoffContext): DynamicTopic {
+    const combinedText = [
+      context.originalQuestion,
+      context.restatedQuestion ?? "",
+      ...context.transcript.map((entry) => entry.content),
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    if (/\b(log[ -]?in|login|sign[ -]?in|password|reset|locked out|cannot access|can'?t access)\b/.test(combinedText)) {
+      return "Issues with Logging In";
+    }
+
+    if (/\b(refund|credit|charged|charge|billing|duplicate purchase|wrong resource|purchase)\b/.test(combinedText)) {
+      return "Refund";
+    }
+
+    if (/\b(how|what|where|when|why|question|can i)\b/.test(combinedText)) {
+      return "Question about TPT";
+    }
+
+    return "Other";
+  }
+
+  function handleChatEscalation(context: ChatHandoffContext) {
+    const nextTopic = inferDynamicContactTopic(context);
+    setTopic(nextTopic);
+    setCurrentStep(1);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   return (
@@ -229,15 +296,17 @@ export default function DynamicContactExperience() {
       </header>
 
       <main className="mx-auto max-w-[1140px] px-8 py-14">
-        <section className="max-w-[980px]">
-          <p className="text-[24px] font-semibold text-[#1b5e4b]">Contact Us</p>
-          <h1 className="mt-5 text-[58px] font-semibold leading-none tracking-tight">We&apos;re here to help!</h1>
-          <p className="mt-5 text-[29px] leading-[1.25] text-slate-900">
-            To get started, fill out the form below, providing as much detail as you can.
-            Someone from TPT&apos;s Customer Experience team will get back to you as soon as
-            possible.
-          </p>
-        </section>
+        {currentStep !== 3 ? (
+          <section className="max-w-[980px]">
+            <p className="text-[24px] font-semibold text-[#1b5e4b]">Contact Us</p>
+            <h1 className="mt-5 text-[58px] font-semibold leading-none tracking-tight">We&apos;re here to help!</h1>
+            <p className="mt-5 text-[29px] leading-[1.25] text-slate-900">
+              To get started, fill out the form below, providing as much detail as you can.
+              Someone from TPT&apos;s Customer Experience team will get back to you as soon as
+              possible.
+            </p>
+          </section>
+        ) : null}
 
         {source === "chatbot" && currentStep !== 3 ? (
           <div className="mt-8 max-w-[980px] rounded-md border border-emerald-200 bg-emerald-50 px-5 py-4 text-base text-slate-700">
@@ -246,7 +315,26 @@ export default function DynamicContactExperience() {
         ) : null}
 
         {currentStep !== 3 ? (
-          <section className="mt-10 max-w-[980px]">
+          <div className="mt-6 max-w-[980px] border-l-4 border-[#63E0A5] bg-[#f6fbf8] px-5 py-4">
+            <div className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">
+              {currentStepLabel}
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <span className="text-base text-slate-700">Current topic:</span>
+              <span className="rounded-full bg-[#14473f] px-4 py-1.5 text-sm font-semibold text-white">
+                {topic || "Choose a topic"}
+              </span>
+            </div>
+            {topic ? (
+              <p className="mt-3 text-base leading-7 text-slate-700">
+                You are currently in the <span className="font-semibold text-slate-900">{topic}</span> support flow.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {currentStep !== 3 ? (
+          <section className="mt-10 max-w-[980px] rounded-[28px] border border-slate-200 bg-[#fcfffd] p-8 shadow-[0_30px_80px_-58px_rgba(15,23,42,0.38)]">
             <div className="mb-6 flex flex-wrap items-center gap-3 text-sm">
               <button
                 type="button"
@@ -265,14 +353,23 @@ export default function DynamicContactExperience() {
             </div>
 
             {currentStep === 2 ? (
-              <button
-                type="button"
-                className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-[#14473f]"
-                onClick={() => setCurrentStep(1)}
-              >
-                <ArrowLeft className="size-4" />
-                Back
-              </button>
+              <div className="mb-8 flex flex-wrap items-center gap-5">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 text-sm font-medium text-[#14473f]"
+                  onClick={() => setCurrentStep(1)}
+                >
+                  <ArrowLeft className="size-4" />
+                  Back to contact info
+                </button>
+                <button
+                  type="button"
+                  className="text-sm font-medium text-slate-600 underline underline-offset-2"
+                  onClick={() => setCurrentStep(1)}
+                >
+                  Change topic
+                </button>
+              </div>
             ) : null}
 
             <div className="space-y-7">
@@ -371,12 +468,38 @@ export default function DynamicContactExperience() {
                         label="Mailing Address:"
                         required
                         field={
-                          <input
-                            type="text"
-                            className={inputClassName()}
-                            value={mailingAddress}
-                            onChange={(event) => setMailingAddress(event.target.value)}
-                          />
+                          <div className="space-y-3">
+                            <input
+                              type="text"
+                              className={inputClassName()}
+                              placeholder="Street address"
+                              value={mailingAddressStreet}
+                              onChange={(event) => setMailingAddressStreet(event.target.value)}
+                            />
+                            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_120px_140px]">
+                              <input
+                                type="text"
+                                className={inputClassName()}
+                                placeholder="City"
+                                value={mailingAddressCity}
+                                onChange={(event) => setMailingAddressCity(event.target.value)}
+                              />
+                              <input
+                                type="text"
+                                className={inputClassName()}
+                                placeholder="State"
+                                value={mailingAddressState}
+                                onChange={(event) => setMailingAddressState(event.target.value)}
+                              />
+                              <input
+                                type="text"
+                                className={inputClassName()}
+                                placeholder="ZIP code"
+                                value={mailingAddressZip}
+                                onChange={(event) => setMailingAddressZip(event.target.value)}
+                              />
+                            </div>
+                          </div>
                         }
                       />
                     </>
@@ -482,11 +605,14 @@ export default function DynamicContactExperience() {
                 </>
               ) : null}
             </div>
+            <div className="mt-10 border-t border-slate-200 pt-5 text-sm leading-6 text-slate-500">
+              This experience is powered by AI. AI can make mistakes.
+            </div>
           </section>
         ) : null}
 
         {currentStep === 3 && submittedRecord ? (
-          <section className="mt-12 max-w-[980px]">
+          <section className="mt-12 max-w-[980px] rounded-[28px] border border-slate-200 bg-[#fcfffd] p-8 shadow-[0_30px_80px_-58px_rgba(15,23,42,0.38)]">
             <div className="flex items-start gap-5">
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#14473f] text-white">
                 <CheckCircle2 className="size-7" />
@@ -504,7 +630,12 @@ export default function DynamicContactExperience() {
                 <p><span className="font-semibold text-slate-900">Topic:</span> {submittedRecord.topic}</p>
                 <p><span className="font-semibold text-slate-900">Email:</span> {submittedRecord.email}</p>
                 {submittedRecord.accountEmail ? <p><span className="font-semibold text-slate-900">Account email:</span> {submittedRecord.accountEmail}</p> : null}
-                {submittedRecord.mailingAddress ? <p><span className="font-semibold text-slate-900">Mailing address:</span> {submittedRecord.mailingAddress}</p> : null}
+                {submittedRecord.mailingAddress.street ? (
+                  <p>
+                    <span className="font-semibold text-slate-900">Mailing address:</span>{" "}
+                    {submittedRecord.mailingAddress.street}, {submittedRecord.mailingAddress.city}, {submittedRecord.mailingAddress.state} {submittedRecord.mailingAddress.zip}
+                  </p>
+                ) : null}
                 {submittedRecord.resourceLink ? <p><span className="font-semibold text-slate-900">Resource URL or name:</span> {submittedRecord.resourceLink}</p> : null}
                 {submittedRecord.refundReason ? <p><span className="font-semibold text-slate-900">Refund reason:</span> {submittedRecord.refundReason}</p> : null}
                 <p><span className="font-semibold text-slate-900">Message:</span> {submittedRecord.details}</p>
@@ -519,9 +650,13 @@ export default function DynamicContactExperience() {
                 Start another request
               </button>
             </div>
+            <div className="mt-8 text-sm leading-6 text-slate-500">
+              This experience is powered by AI. AI can make mistakes.
+            </div>
           </section>
         ) : null}
       </main>
+      <CxChatWidget onEscalate={handleChatEscalation} />
     </div>
   );
 }
