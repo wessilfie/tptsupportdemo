@@ -2,11 +2,14 @@ const DEFAULT_PROMPT_ID = "pmpt_69cd0f0626e88197ab6100e38b46b65a0ebc4aff65bc5102
 const CHATBOT_PROMPT_ID =
   process.env.OPENAI_SUPPORT_PROMPT_ID ?? DEFAULT_PROMPT_ID;
 const CHATBOT_PROMPT_VERSION = process.env.OPENAI_SUPPORT_PROMPT_VERSION ?? "1";
+const CHATBOT_V4_PROMPT_ID =
+  process.env.OPENAI_SUPPORT_V4_PROMPT_ID ?? DEFAULT_PROMPT_ID;
+const CHATBOT_V4_PROMPT_VERSION =
+  process.env.OPENAI_SUPPORT_V4_PROMPT_VERSION ?? "4";
 const CHATBOT_V7_PROMPT_ID =
   process.env.OPENAI_SUPPORT_V7_PROMPT_ID ?? DEFAULT_PROMPT_ID;
 const CHATBOT_V7_PROMPT_VERSION =
   process.env.OPENAI_SUPPORT_V7_PROMPT_VERSION ?? "7";
-const CHATBOT_V4_MODEL = process.env.OPENAI_SUPPORT_CHAT_MODEL ?? "gpt-4.1-mini";
 
 export type ChatbotMessage = {
   role: string;
@@ -24,9 +27,10 @@ export function getChatbotConfig() {
   return {
     promptId: CHATBOT_PROMPT_ID,
     promptVersion: CHATBOT_PROMPT_VERSION,
+    v4PromptId: CHATBOT_V4_PROMPT_ID,
+    v4PromptVersion: CHATBOT_V4_PROMPT_VERSION,
     v7PromptId: CHATBOT_V7_PROMPT_ID,
     v7PromptVersion: CHATBOT_V7_PROMPT_VERSION,
-    v4Model: CHATBOT_V4_MODEL,
   };
 }
 
