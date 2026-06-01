@@ -14,12 +14,12 @@ export async function POST(req: Request) {
 
   const { apiKey, payload } = parsed;
   const openai = new OpenAI({ apiKey });
-  const { promptId, promptVersion } = getChatbotConfig();
+  const { v7PromptId, v7PromptVersion } = getChatbotConfig();
 
   const requestArgs: Record<string, unknown> = {
     prompt: {
-      id: promptId,
-      version: promptVersion,
+      id: v7PromptId,
+      version: v7PromptVersion,
       variables: {
         usertype: payload.usertype,
       },
