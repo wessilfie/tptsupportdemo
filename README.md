@@ -47,6 +47,7 @@ Notes:
 - `OPENAI_SUPPORT_PROMPT_ID` should point to the prompt used by `/support/chatbot`
 - `OPENAI_SUPPORT_PROMPT_VERSION` is typically `1` unless you want a different saved prompt version
 - the bot is currently prompt-based, not ChatKit-based
+- `/dynamic-v4` uses the legacy chat-completions-backed bot route, while `/dynamic-v7` uses the Responses API route
 
 ## Local development
 

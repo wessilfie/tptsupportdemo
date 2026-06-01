@@ -104,7 +104,13 @@ function textAreaClassName() {
   return "min-h-48 w-full rounded-[1.5rem] border border-slate-200 bg-white px-4 py-4 text-base leading-7 text-slate-900 shadow-[0_18px_36px_-30px_rgba(15,23,42,0.16)] outline-none transition focus:border-[#63E0A5] focus:ring-4 focus:ring-[#dff8ea]";
 }
 
-export default function DynamicContactExperience() {
+type DynamicContactExperienceProps = {
+  chatbotEndpoint?: string;
+};
+
+export default function DynamicContactExperience({
+  chatbotEndpoint = "/support/chatbot",
+}: DynamicContactExperienceProps) {
   const searchParams = useSearchParams();
   const [authState, setAuthState] = useState<AuthState>("logged_out");
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
@@ -681,7 +687,10 @@ export default function DynamicContactExperience() {
           </section>
         ) : null}
       </main>
-      <CxChatWidget onEscalate={handleChatEscalation} />
+      <CxChatWidget
+        onEscalate={handleChatEscalation}
+        chatbotEndpoint={chatbotEndpoint}
+      />
     </div>
   );
 }
