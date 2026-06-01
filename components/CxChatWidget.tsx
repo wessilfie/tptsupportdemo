@@ -44,6 +44,7 @@ export type ChatHandoffContext = {
 type CxChatWidgetProps = {
   onEscalate: (context: ChatHandoffContext) => void;
   openRequestKey?: number;
+  chatbotEndpoint?: string;
 };
 
 const GREETING = "Hi! I'm TPT bot.";
@@ -182,7 +183,11 @@ function renderFormattedText(content: string, keyPrefix: string) {
   });
 }
 
-export function CxChatWidget({ onEscalate, openRequestKey }: CxChatWidgetProps) {
+export function CxChatWidget({
+  onEscalate,
+  openRequestKey,
+  chatbotEndpoint = "/support/chatbot",
+}: CxChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
   const [stage, setStage] = useState<ChatStage>("awaiting_usertype");
@@ -312,7 +317,7 @@ export function CxChatWidget({ onEscalate, openRequestKey }: CxChatWidgetProps) 
     setStage("answering");
 
     try {
-      const response = await fetch("/support/chatbot", {
+      const response = await fetch(chatbotEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
