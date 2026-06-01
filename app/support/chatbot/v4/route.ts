@@ -5,29 +5,6 @@ import {
   getChatbotConfig,
   parseChatbotRequest,
 } from "@/lib/chatbot-route";
-import { findRelevantArticles } from "@/lib/knowledge-base";
-
-function buildGroundedPrompt(usertype: string, question: string) {
-  const relevantArticles = findRelevantArticles(question, 5);
-  const articleContext = relevantArticles
-    .map((article, index) => {
-      const snippet = article.snippet.replace(/\s+/g, " ").trim();
-      return `Article ${index + 1}: ${article.title}\nSource: ${article.url}\nSnippet: ${snippet}`;
-    })
-    .join("\n\n");
-
-  return [
-    "You are TPT Bot helping Teachers Pay Teachers users.",
-    `User type: ${usertype || "Unknown"}`,
-    "Answer using the provided Help Center context when possible.",
-    "If the context is incomplete, say so clearly instead of inventing details.",
-    "When helpful, include the relevant Help Center source URL from the provided context.",
-    "Keep the answer concise and support-focused.",
-    "",
-    "Help Center context:",
-    articleContext || "No matching Help Center articles were found.",
-  ].join("\n");
-}
 
 export async function POST(req: Request) {
   const parsed = await parseChatbotRequest(req);
@@ -37,24 +14,36 @@ export async function POST(req: Request) {
 
   const { apiKey, payload } = parsed;
   const openai = new OpenAI({ apiKey });
-  const { v4Model } = getChatbotConfig();
+  const { v4PromptId, v4PromptVersion } = getChatbotConfig();
+
+  const requestArgs: Record<string, unknown> = {
+    prompt: {
+      id: v4PromptId,
+      version: v4PromptVersion,
+      variables: {
+        usertype: payload.usertype,
+      },
+    },
+  };
+
+  if (payload.previous_response_id) {
+    requestArgs.previous_response_id = payload.previous_response_id;
+    requestArgs.input = [
+      {
+        role: "user",
+        content: [{ type: "input_text", text: payload.question }],
+      },
+    ];
+  } else {
+    requestArgs.input = payload.messages.map((message) => ({
+      role: message.role,
+      content: [{ type: "input_text", text: message.content }],
+    }));
+  }
 
   try {
-    const response = await openai.chat.completions.create({
-      model: v4Model,
-      messages: [
-        {
-          role: "system",
-          content: buildGroundedPrompt(payload.usertype, payload.question),
-        },
-        ...payload.messages.map((message) => ({
-          role: message.role as "user" | "assistant" | "system",
-          content: message.content,
-        })),
-      ],
-    });
-
-    const answer = response.choices[0]?.message?.content?.trim();
+    const response = await openai.responses.create(requestArgs);
+    const answer = response.output_text?.trim();
 
     if (!answer) {
       return Response.json(
@@ -65,7 +54,7 @@ export async function POST(req: Request) {
 
     return Response.json({
       answer,
-      response_id: null,
+      response_id: response.id,
       handoffSuggested: false,
     });
   } catch (error) {
