@@ -46,6 +46,8 @@ type CxChatWidgetProps = {
   onEscalate: (context: ChatHandoffContext) => void;
   openRequestKey?: number;
   chatbotEndpoint?: string;
+  botName?: string;
+  greeting?: string;
 };
 
 const GREETING = "Hi! I'm TPT support.";
@@ -179,34 +181,37 @@ function renderFormattedText(content: string, keyPrefix: string) {
   });
 }
 
-function buildInitialMessages(): ChatMessage[] {
-  const rootNode = getHardcodedRootNode();
+function buildGreetingMessage(greetingText: string = GREETING): ChatMessage {
+  return { id: buildId(), role: "assistant", content: greetingText };
+}
 
-  return [
-    {
-      id: buildId(),
-      role: "assistant",
-      content: GREETING,
-    },
-    {
-      id: buildId(),
-      role: "assistant",
-      content: COMMON_QUESTION_PROMPT,
-      options: rootNode.options,
-      optionVariant: "quick-reply",
-    },
-  ];
+function buildTopicsMessage(): ChatMessage {
+  const rootNode = getHardcodedRootNode();
+  return {
+    id: buildId(),
+    role: "assistant",
+    content: COMMON_QUESTION_PROMPT,
+    options: rootNode.options,
+    optionVariant: "quick-reply",
+  };
+}
+
+function buildInitialMessages(greetingText: string = GREETING): ChatMessage[] {
+  return [buildGreetingMessage(greetingText), buildTopicsMessage()];
 }
 
 export function CxChatWidget({
   onEscalate,
   openRequestKey,
   chatbotEndpoint = "/support/chatbot",
+  botName = "TPT support",
+  greeting = GREETING,
 }: CxChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
   const [stage, setStage] = useState<ChatStage>("initial");
-  const [messages, setMessages] = useState<ChatMessage[]>(buildInitialMessages);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [buildGreetingMessage(greeting)]);
+  const [greetingKey, setGreetingKey] = useState(0);
   const [modelMessages, setModelMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -239,6 +244,14 @@ export function CxChatWidget({
       setShowTooltip(false);
     }
   }, [openRequestKey]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const timer = window.setTimeout(() => {
+      setMessages((prev) => [...prev, buildTopicsMessage()]);
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, greetingKey]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -321,7 +334,8 @@ export function CxChatWidget({
 
   function resetConversationState() {
     setStage("initial");
-    setMessages(buildInitialMessages());
+    setGreetingKey((k) => k + 1);
+    setMessages([buildGreetingMessage(greeting)]);
     setModelMessages([]);
     setInput("");
     setIsLoading(false);
@@ -618,7 +632,7 @@ export function CxChatWidget({
                 <Sparkles className="size-3.5" />
               </div>
               <div>
-                <p className="text-[15px] font-semibold text-[#232323]">TPT support</p>
+                <p className="text-[15px] font-semibold text-[#232323]">{botName}</p>
               </div>
             </div>
             <div className="flex items-center gap-1 text-[#232323]">
