@@ -690,7 +690,7 @@ export default function DynamicContactExperience({
       <CxChatWidget
         onEscalate={handleChatEscalation}
         chatbotEndpoint={chatbotEndpoint}
-        {...(chatbotEndpoint === "/support/chatbot/v8" && {
+        {...(["/support/chatbot/v8", "/support/chatbot/latest"].includes(chatbotEndpoint ?? "") && {
           botName: "TPT Bot",
           greeting:
             "Hi! I'm TPT Bot. I'm a virtual assistant that can help answer questions about TPT.  Click a suggested topic or type below and I'll be able to help.",

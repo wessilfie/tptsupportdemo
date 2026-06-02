@@ -14,6 +14,8 @@ const CHATBOT_V8_PROMPT_ID =
   process.env.OPENAI_SUPPORT_V8_PROMPT_ID ?? DEFAULT_PROMPT_ID;
 const CHATBOT_V8_PROMPT_VERSION =
   process.env.OPENAI_SUPPORT_V8_PROMPT_VERSION ?? "8";
+const CHATBOT_LATEST_PROMPT_ID =
+  process.env.OPENAI_SUPPORT_LATEST_PROMPT_ID ?? DEFAULT_PROMPT_ID;
 
 export type ChatbotMessage = {
   role: string;
@@ -37,6 +39,7 @@ export function getChatbotConfig() {
     v7PromptVersion: CHATBOT_V7_PROMPT_VERSION,
     v8PromptId: CHATBOT_V8_PROMPT_ID,
     v8PromptVersion: CHATBOT_V8_PROMPT_VERSION,
+    latestPromptId: CHATBOT_LATEST_PROMPT_ID,
   };
 }
 
