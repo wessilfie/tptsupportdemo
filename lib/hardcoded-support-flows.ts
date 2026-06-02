@@ -98,7 +98,7 @@ const NODES: Record<string, HardcodedSupportNode> = {
     id: "printing_permission_letter",
     label: "I need a permission letter to print",
     response:
-      "You can access a printable printing authorization for resources in the \"My Purchases\" section of your account.\n\n[My Purchases](https://www.teacherspayteachers.com/My-Purchases)",
+      "You can access a printable printing authorization for resources in the [My Purchases](https://www.teacherspayteachers.com/My-Purchases) section of your account.",
   },
   opening_files: {
     id: "opening_files",
