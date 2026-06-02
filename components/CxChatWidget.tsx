@@ -504,6 +504,13 @@ export function CxChatWidget({
     !pendingExitAction &&
     (stage === "initial" || stage === "awaiting_rephrase") &&
     !isLoading;
+  const disabledPlaceholder = pendingExitAction
+    ? "Complete the prompt above to close or reset."
+    : stage === "limit_reached"
+      ? "This chat has ended. Start a new conversation to continue."
+      : stage === "escalated"
+        ? "Continue in the contact form."
+        : "Complete the step above to continue.";
   const panelBottom = isOpen ? Math.max(16, keyboardInset + 16) : 112;
   const panelHeight = `min(620px, calc(100dvh - ${keyboardInset + 32}px))`;
   const showWelcomeState =
@@ -690,7 +697,7 @@ export function CxChatWidget({
                     ? stage === "awaiting_rephrase"
                       ? "Restate your question..."
                       : "Ask a question..."
-                    : "Use the buttons above to continue"
+                    : disabledPlaceholder
                 }
                 disabled={!canType || isLoading}
                 rows={1}
