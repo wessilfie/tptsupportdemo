@@ -11,15 +11,11 @@ import {
   X,
 } from "lucide-react";
 
-export type ChatUserType = "Buyer" | "Seller" | "Publisher" | "Other";
-
 type ChatStage =
   | "initial"
-  | "awaiting_usertype"
   | "answering"
-  | "awaiting_resolution"
   | "awaiting_rephrase"
-  | "awaiting_rating"
+  | "limit_reached"
   | "escalated";
 
 type ChatMessage = {
@@ -35,7 +31,7 @@ type ChatbotApiResponse = {
 };
 
 export type ChatHandoffContext = {
-  userType: ChatUserType | null;
+  userType: string | null;
   originalQuestion: string;
   restatedQuestion: string | null;
   transcript: ChatMessage[];
@@ -55,6 +51,10 @@ const STARTER_QUESTIONS = [
   "I'm having issues printing a file",
   "I need assistance purchasing",
 ] as const;
+const CHATBOT_USERTYPE = " ";
+const MAX_MESSAGES_EXCHANGED = 50;
+const LIMIT_REACHED_MESSAGE =
+  "Sorry, I can't help with this request anymore. Please connect with the TPT CX team at teacherspayteachers.com/Contact for further assistance.";
 const MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/gi;
 const URL_PATTERN = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
 const BOLD_PATTERN = /(\*\*[^*]+\*\*)/g;
@@ -164,10 +164,7 @@ function renderFormattedText(content: string, keyPrefix: string) {
 
     if (isBullet) {
       return (
-        <div
-          key={`${keyPrefix}-line-${lineIndex}`}
-          className="flex items-start gap-2"
-        >
+        <div key={`${keyPrefix}-line-${lineIndex}`} className="flex items-start gap-2">
           <span className="pt-[0.45rem] text-[0.55rem] leading-none text-current">●</span>
           <span>{formattedParts}</span>
         </div>
@@ -190,7 +187,7 @@ export function CxChatWidget({
 }: CxChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
-  const [stage, setStage] = useState<ChatStage>("awaiting_usertype");
+  const [stage, setStage] = useState<ChatStage>("initial");
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: buildId(), role: "assistant", content: GREETING },
     { id: buildId(), role: "assistant", content: INTRO_PROMPT },
@@ -198,13 +195,17 @@ export function CxChatWidget({
   const [modelMessages, setModelMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [userType, setUserType] = useState<ChatUserType | null>(null);
   const [originalQuestion, setOriginalQuestion] = useState("");
   const [restatedQuestion, setRestatedQuestion] = useState<string | null>(null);
-  const [noCount, setNoCount] = useState(0);
   const [rating, setRating] = useState<number | null>(null);
   const [previousResponseId, setPreviousResponseId] = useState<string | null>(null);
   const [keyboardInset, setKeyboardInset] = useState(0);
+  const [pendingExitAction, setPendingExitAction] = useState<"close" | "reset" | null>(
+    null,
+  );
+  const [feedbackChoice, setFeedbackChoice] = useState<"yes" | "no" | null>(null);
+  const [feedbackReason, setFeedbackReason] = useState("");
+  const [feedbackRating, setFeedbackRating] = useState<number | null>(null);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -223,13 +224,17 @@ export function CxChatWidget({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading, stage]);
+  }, [messages, isLoading, pendingExitAction, stage]);
 
   useEffect(() => {
-    if (isOpen && (stage === "initial" || stage === "awaiting_rephrase")) {
+    if (
+      isOpen &&
+      !pendingExitAction &&
+      (stage === "initial" || stage === "awaiting_rephrase")
+    ) {
       window.setTimeout(() => inputRef.current?.focus(), 80);
     }
-  }, [isOpen, stage]);
+  }, [isOpen, pendingExitAction, stage]);
 
   useEffect(() => {
     if (!inputRef.current) {
@@ -267,22 +272,29 @@ export function CxChatWidget({
 
   const transcriptForLogging = useMemo(
     () => ({
-      userType,
       rating,
-      noCount,
       originalQuestion,
       restatedQuestion,
       messages,
+      feedbackChoice,
+      feedbackReason,
     }),
-    [messages, noCount, originalQuestion, rating, restatedQuestion, userType],
+    [feedbackChoice, feedbackReason, messages, originalQuestion, rating, restatedQuestion],
   );
 
   function appendMessage(role: ChatMessage["role"], content: string) {
     setMessages((current) => [...current, { id: buildId(), role, content }]);
   }
 
+  function clearExitFeedback() {
+    setPendingExitAction(null);
+    setFeedbackChoice(null);
+    setFeedbackReason("");
+    setFeedbackRating(null);
+  }
+
   function resetConversation() {
-    setStage("awaiting_usertype");
+    setStage("initial");
     setMessages([
       { id: buildId(), role: "assistant", content: GREETING },
       { id: buildId(), role: "assistant", content: INTRO_PROMPT },
@@ -290,21 +302,45 @@ export function CxChatWidget({
     setModelMessages([]);
     setInput("");
     setIsLoading(false);
-    setUserType(null);
     setOriginalQuestion("");
     setRestatedQuestion(null);
-    setNoCount(0);
     setRating(null);
     setPreviousResponseId(null);
+    clearExitFeedback();
   }
 
-  async function requestAnswer(question: string, resolvedUserType = userType) {
-    if (!resolvedUserType) {
+  function finalizeExit(action: "close" | "reset") {
+    if (action === "close") {
+      clearExitFeedback();
+      setIsOpen(false);
       return;
     }
 
+    resetConversation();
+  }
+
+  function handleExitIntent(action: "close" | "reset") {
+    const hasConversation = modelMessages.length > 0 || Boolean(originalQuestion.trim());
+    if (!hasConversation) {
+      finalizeExit(action);
+      return;
+    }
+
+    setPendingExitAction(action);
+    setFeedbackChoice(null);
+    setFeedbackReason("");
+    setFeedbackRating(null);
+  }
+
+  async function requestAnswer(question: string) {
     const trimmedQuestion = question.trim();
     if (!trimmedQuestion) {
+      return;
+    }
+
+    if (modelMessages.length >= MAX_MESSAGES_EXCHANGED) {
+      appendMessage("assistant", LIMIT_REACHED_MESSAGE);
+      setStage("limit_reached");
       return;
     }
 
@@ -324,7 +360,7 @@ export function CxChatWidget({
         },
         body: JSON.stringify({
           messages: nextModelMessages.map(({ role, content }) => ({ role, content })),
-          usertype: resolvedUserType,
+          usertype: CHATBOT_USERTYPE,
           question: trimmedQuestion,
           previous_response_id: previousResponseId,
         }),
@@ -363,7 +399,7 @@ export function CxChatWidget({
           "I should hand this over to the contact form so the CX team can follow up directly.",
         );
         const context: ChatHandoffContext = {
-          userType: resolvedUserType,
+          userType: CHATBOT_USERTYPE,
           originalQuestion: originalQuestion || trimmedQuestion,
           restatedQuestion,
           transcript: [...messages, { id: buildId(), role: "user", content: trimmedQuestion }],
@@ -373,8 +409,7 @@ export function CxChatWidget({
         return;
       }
 
-      appendMessage("assistant", "Did that answer your question?");
-      setStage("awaiting_resolution");
+      setStage("initial");
     } catch (error) {
       console.error("TPT CX chatbot error", error);
       appendMessage(
@@ -431,22 +466,6 @@ export function CxChatWidget({
     }
   }
 
-  function handleUserTypeSelect(nextUserType: ChatUserType) {
-    if (userType === nextUserType && stage === "initial") {
-      return;
-    }
-
-    setUserType(nextUserType);
-    if (!userType) {
-      appendMessage("user", nextUserType);
-      appendMessage(
-        "assistant",
-        `Thanks. I’ll tailor help for ${nextUserType.toLowerCase()} questions. Pick a common question below or type your own.`,
-      );
-    }
-    setStage("initial");
-  }
-
   function handleStarterQuestionSelect(question: string) {
     if (!canType || isLoading) {
       return;
@@ -461,84 +480,30 @@ export function CxChatWidget({
     void requestAnswer(question);
   }
 
-  function handleHelpful(approved: boolean) {
-    appendMessage("user", approved ? "Yes" : "No");
-
-    if (approved) {
-      setNoCount(0);
-      appendMessage("assistant", "Great. Please rate this conversation from 1 to 5 stars.");
-      setStage("awaiting_rating");
+  function submitExitFeedback() {
+    if (!pendingExitAction || !feedbackChoice) {
       return;
     }
 
-    const nextNoCount = noCount + 1;
-    setNoCount(nextNoCount);
-
-    if (nextNoCount >= 2) {
-      const transcript = [
-        ...messages,
-        { id: buildId(), role: "user" as const, content: "No" },
-        {
-          id: buildId(),
-          role: "assistant" as const,
-          content:
-            "I’m opening the best matching contact flow now so CX can take it from here.",
-        },
-      ];
-      appendMessage(
-        "assistant",
-        "I’m opening the best matching contact flow now so CX can take it from here.",
-      );
-      const context: ChatHandoffContext = {
-        userType,
-        originalQuestion,
-        restatedQuestion,
-        transcript,
-      };
-      onEscalate(context);
-      setStage("escalated");
-      setIsOpen(false);
-      return;
-    }
-
-    appendMessage(
-      "assistant",
-      "Thanks. Please restate the question and I’ll take another try.",
-    );
-    setStage("awaiting_rephrase");
-  }
-
-  function handleRatingSelect(nextRating: number) {
-    if (rating !== null) {
+    const nextRating = feedbackChoice === "yes" ? feedbackRating : null;
+    if (feedbackChoice === "yes" && nextRating === null) {
       return;
     }
 
     setRating(nextRating);
-
-    window.setTimeout(() => {
-      appendMessage("user", `${nextRating} star${nextRating === 1 ? "" : "s"}`);
-      appendMessage(
-        "assistant",
-        "Thanks for the rating. If you have another question, ask anytime.",
-      );
-      console.log("TPT CX chatbot transcript", {
-        ...transcriptForLogging,
-        rating: nextRating,
-      });
-      setStage("initial");
-      setModelMessages([]);
-      setPreviousResponseId(null);
-      setOriginalQuestion("");
-      setRestatedQuestion(null);
-      setNoCount(0);
-      setRating(null);
-    }, 160);
+    console.log("TPT CX chatbot transcript", {
+      ...transcriptForLogging,
+      rating: nextRating,
+      feedbackChoice,
+      feedbackReason,
+    });
+    finalizeExit(pendingExitAction);
   }
 
   const canType =
+    !pendingExitAction &&
     (stage === "initial" || stage === "awaiting_rephrase") &&
-    !isLoading &&
-    Boolean(userType);
+    !isLoading;
   const panelBottom = isOpen ? Math.max(16, keyboardInset + 16) : 112;
   const panelHeight = `min(620px, calc(100dvh - ${keyboardInset + 32}px))`;
   const showWelcomeState =
@@ -546,30 +511,28 @@ export function CxChatWidget({
     messages.length <= 2 &&
     !originalQuestion &&
     !restatedQuestion &&
-    stage !== "awaiting_resolution" &&
-    stage !== "awaiting_rating" &&
     stage !== "escalated";
 
   return (
     <>
       {!isOpen ? (
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
-        {showTooltip && !isOpen ? (
-          <div className="max-w-[260px] rounded-[1.4rem] border border-emerald-100 bg-white px-4 py-3 text-sm leading-6 text-slate-700 shadow-[0_24px_60px_-28px_rgba(15,23,42,0.28)]">
-            I&apos;m the TPT CX Bot. Ask me a question for instant support.
-          </div>
-        ) : null}
+          {showTooltip && !isOpen ? (
+            <div className="max-w-[260px] rounded-[1.4rem] border border-emerald-100 bg-white px-4 py-3 text-sm leading-6 text-slate-700 shadow-[0_24px_60px_-28px_rgba(15,23,42,0.28)]">
+              I&apos;m the TPT CX Bot. Ask me a question for instant support.
+            </div>
+          ) : null}
 
-        <button
-          type="button"
-          aria-label={isOpen ? "Close TPT CX chat" : "Open TPT CX chat"}
-          className="flex h-16 w-16 items-center justify-center rounded-full bg-[#14473f] text-white shadow-[0_22px_50px_-18px_rgba(20,71,63,0.65)] transition hover:bg-[#1d5d53]"
-          onClick={() => setIsOpen((current) => !current)}
-          onMouseEnter={() => !isOpen && setShowTooltip(true)}
-          onMouseLeave={() => setShowTooltip(false)}
-        >
-          <MessageCircleQuestion className="size-7" />
-        </button>
+          <button
+            type="button"
+            aria-label={isOpen ? "Close TPT CX chat" : "Open TPT CX chat"}
+            className="flex h-16 w-16 items-center justify-center rounded-full bg-[#14473f] text-white shadow-[0_22px_50px_-18px_rgba(20,71,63,0.65)] transition hover:bg-[#1d5d53]"
+            onClick={() => setIsOpen((current) => !current)}
+            onMouseEnter={() => !isOpen && setShowTooltip(true)}
+            onMouseLeave={() => setShowTooltip(false)}
+          >
+            <MessageCircleQuestion className="size-7" />
+          </button>
         </div>
       ) : null}
 
@@ -592,7 +555,7 @@ export function CxChatWidget({
                 type="button"
                 className="flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-slate-100 hover:text-slate-900"
                 aria-label="New conversation"
-                onClick={resetConversation}
+                onClick={() => handleExitIntent("reset")}
               >
                 <SquarePen className="size-6" />
               </button>
@@ -600,7 +563,7 @@ export function CxChatWidget({
                 type="button"
                 className="flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-slate-100 hover:text-slate-900"
                 aria-label="Reset conversation"
-                onClick={resetConversation}
+                onClick={() => handleExitIntent("reset")}
               >
                 <RotateCcw className="size-6" />
               </button>
@@ -608,7 +571,7 @@ export function CxChatWidget({
                 type="button"
                 aria-label="Close TPT CX chat"
                 className="flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-slate-100 hover:text-slate-900"
-                onClick={() => setIsOpen(false)}
+                onClick={() => handleExitIntent("close")}
               >
                 <X className="size-7" />
               </button>
@@ -619,68 +582,45 @@ export function CxChatWidget({
             {showWelcomeState ? (
               <div className="flex min-h-full flex-col justify-start px-2 pb-6 pt-2">
                 <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.2)]">
-                  <p className="text-sm font-semibold text-slate-900">Who are you?</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {(["Buyer", "Seller", "Publisher", "Other"] as ChatUserType[]).map((option) => (
+                  <p className="text-sm font-semibold text-slate-900">Popular questions</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    Choose one to get started, or type your own question below.
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {STARTER_QUESTIONS.map((question) => (
                       <button
-                        key={option}
+                        key={question}
                         type="button"
-                        className={clsx(
-                          "rounded-full border px-3 py-2 text-sm font-medium transition",
-                          userType === option
-                            ? "border-[#14473f] bg-[#14473f] text-white"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:bg-emerald-50",
-                        )}
-                        onClick={() => handleUserTypeSelect(option)}
+                        className="rounded-full bg-[#f3f4f6] px-3 py-2 text-sm font-medium text-slate-800 transition hover:bg-slate-200"
+                        onClick={() => handleStarterQuestionSelect(question)}
                       >
-                        {option}
+                        {question}
                       </button>
                     ))}
                   </div>
                 </div>
-
-                {userType ? (
-                  <div className="mt-4 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.2)]">
-                    <p className="text-sm font-semibold text-slate-900">Popular questions</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-600">
-                      Choose one to get started, or type your own question below.
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {STARTER_QUESTIONS.map((question) => (
-                        <button
-                          key={question}
-                          type="button"
-                          className="rounded-full bg-[#f3f4f6] px-3 py-2 text-sm font-medium text-slate-800 transition hover:bg-slate-200"
-                          onClick={() => handleStarterQuestionSelect(question)}
-                        >
-                          {question}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
               </div>
             ) : (
               <div className="space-y-4">
                 {messages.map((message) => {
-              const isAssistant = message.role === "assistant";
-              return (
-                <div
-                  key={message.id}
-                  className={clsx("flex", isAssistant ? "justify-start" : "justify-end")}
-                >
-                  <div
-                    className={clsx(
-                      "max-w-[88%] whitespace-pre-wrap break-words rounded-[1.35rem] px-4 py-3 text-sm leading-6",
-                      isAssistant
-                        ? "rounded-tl-md border border-slate-200 bg-[#fafafa] text-slate-700"
-                        : "rounded-tr-md bg-[#14473f] text-white shadow-[0_18px_36px_-24px_rgba(20,71,63,0.4)]",
-                    )}
-                  >
-                    {renderMessageContent(message.content)}
-                  </div>
-                </div>
-              );
+                  const isAssistant = message.role === "assistant";
+                  return (
+                    <div
+                      key={message.id}
+                      className={clsx("flex", isAssistant ? "justify-start" : "justify-end")}
+                    >
+                      <div
+                        className={clsx(
+                          "max-w-[88%] whitespace-pre-wrap break-words rounded-[1.35rem] px-4 py-3 text-sm leading-6",
+                          isAssistant
+                            ? "rounded-tl-md border border-slate-200 bg-[#fafafa] text-slate-700"
+                            : "rounded-tr-md bg-[#14473f] text-white shadow-[0_18px_36px_-24px_rgba(20,71,63,0.4)]",
+                        )}
+                      >
+                        {renderMessageContent(message.content)}
+                      </div>
+                    </div>
+                  );
                 })}
 
                 {isLoading ? (
@@ -697,30 +637,7 @@ export function CxChatWidget({
                   </div>
                 ) : null}
 
-                {(stage === "awaiting_usertype" || stage === "initial" || stage === "awaiting_rephrase") ? (
-                  <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4">
-                    <p className="text-sm font-semibold text-slate-900">Who are you?</p>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {(["Buyer", "Seller", "Publisher", "Other"] as ChatUserType[]).map((option) => (
-                        <button
-                          key={option}
-                          type="button"
-                          className={clsx(
-                            "rounded-full border px-3 py-2 text-sm font-medium transition",
-                            userType === option
-                              ? "border-[#14473f] bg-[#14473f] text-white"
-                              : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:bg-emerald-50",
-                          )}
-                          onClick={() => handleUserTypeSelect(option)}
-                        >
-                          {option}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
-                {userType && stage === "initial" && !originalQuestion && !isLoading ? (
+                {stage === "initial" && !originalQuestion && !isLoading ? (
                   <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4">
                     <p className="text-sm font-semibold text-slate-900">Popular questions</p>
                     <p className="mt-1 text-sm leading-6 text-slate-600">
@@ -738,48 +655,6 @@ export function CxChatWidget({
                         </button>
                       ))}
                     </div>
-                  </div>
-                ) : null}
-
-                {stage === "awaiting_resolution" ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      className="rounded-full bg-[#63E0A5] px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-[#4ed591]"
-                      onClick={() => handleHelpful(true)}
-                    >
-                      Yes
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400"
-                      onClick={() => handleHelpful(false)}
-                    >
-                      No
-                    </button>
-                  </div>
-                ) : null}
-
-                {stage === "awaiting_rating" ? (
-                  <div className="flex items-center justify-center gap-2">
-                    {[1, 2, 3, 4, 5].map((value) => (
-                      <button
-                        key={value}
-                        type="button"
-                        className={clsx(
-                          "rounded-full border p-3 transition",
-                          value <= (rating ?? 0)
-                            ? "border-amber-300 bg-amber-50 text-amber-500"
-                            : "border-amber-200 bg-white text-amber-500 hover:bg-amber-50",
-                          rating !== null && "cursor-not-allowed",
-                        )}
-                        onClick={() => handleRatingSelect(value)}
-                        aria-label={`Rate ${value} stars`}
-                        disabled={rating !== null}
-                      >
-                        <Star className={clsx("size-5", value <= (rating ?? 0) && "fill-current")} />
-                      </button>
-                    ))}
                   </div>
                 ) : null}
 
@@ -811,9 +686,7 @@ export function CxChatWidget({
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 placeholder={
-                  !userType
-                    ? "Select Buyer, Seller, Publisher, or Other first"
-                    : canType
+                  canType
                     ? stage === "awaiting_rephrase"
                       ? "Restate your question..."
                       : "Ask a question..."
@@ -838,6 +711,120 @@ export function CxChatWidget({
               AI support can make mistakes
             </p>
           </form>
+
+          {pendingExitAction ? (
+            <div className="absolute inset-0 z-10 flex items-end bg-slate-950/30 p-3 sm:items-center sm:p-4">
+              <div className="w-full rounded-[1.75rem] bg-white p-5 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.65)]">
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                      Before you {pendingExitAction}
+                    </p>
+                    <h3 className="mt-1 text-lg font-semibold text-slate-900">
+                      Did we answer your question?
+                    </h3>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      className={clsx(
+                        "rounded-full px-4 py-3 text-sm font-semibold transition",
+                        feedbackChoice === "yes"
+                          ? "bg-[#63E0A5] text-slate-950"
+                          : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400",
+                      )}
+                      onClick={() => {
+                        setFeedbackChoice("yes");
+                        setFeedbackReason("");
+                      }}
+                    >
+                      Yes
+                    </button>
+                    <button
+                      type="button"
+                      className={clsx(
+                        "rounded-full px-4 py-3 text-sm font-semibold transition",
+                        feedbackChoice === "no"
+                          ? "bg-slate-900 text-white"
+                          : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400",
+                      )}
+                      onClick={() => {
+                        setFeedbackChoice("no");
+                        setFeedbackRating(null);
+                      }}
+                    >
+                      No
+                    </button>
+                  </div>
+
+                  {feedbackChoice === "yes" ? (
+                    <div className="space-y-3">
+                      <p className="text-sm text-slate-600">Rate the response out of 5.</p>
+                      <div className="flex items-center justify-center gap-2">
+                        {[1, 2, 3, 4, 5].map((value) => (
+                          <button
+                            key={value}
+                            type="button"
+                            className={clsx(
+                              "rounded-full border p-3 transition",
+                              feedbackRating === value
+                                ? "border-amber-300 bg-amber-50 text-amber-500"
+                                : "border-amber-200 bg-white text-amber-400 hover:bg-amber-50",
+                            )}
+                            onClick={() => setFeedbackRating(value)}
+                            aria-label={`Rate ${value} stars`}
+                          >
+                            <Star className="size-5 fill-current" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {feedbackChoice === "no" ? (
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="chat-feedback-reason"
+                        className="block text-sm font-medium text-slate-700"
+                      >
+                        Tell us why, if you&apos;d like.
+                      </label>
+                      <textarea
+                        id="chat-feedback-reason"
+                        value={feedbackReason}
+                        onChange={(event) => setFeedbackReason(event.target.value)}
+                        rows={4}
+                        placeholder="Optional feedback"
+                        className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+                      />
+                    </div>
+                  ) : null}
+
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
+                      onClick={clearExitFeedback}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-full bg-[#14473f] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1d5d53] disabled:cursor-not-allowed disabled:bg-slate-300"
+                      onClick={submitExitFeedback}
+                      disabled={
+                        !feedbackChoice ||
+                        (feedbackChoice === "yes" && feedbackRating === null)
+                      }
+                    >
+                      {pendingExitAction === "close" ? "Close chat" : "Reset chat"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </section>
       ) : null}
     </>
