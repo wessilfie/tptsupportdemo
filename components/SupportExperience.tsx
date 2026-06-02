@@ -1791,6 +1791,12 @@ function App() {
                 >
                   Open Dynamic V8
                 </Link>
+                <Link
+                  href="/dynamic-latest"
+                  className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  Open Dynamic Latest
+                </Link>
               </div>
             </div>
           </div>
