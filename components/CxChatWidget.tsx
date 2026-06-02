@@ -10,6 +10,10 @@ import {
   Star,
   X,
 } from "lucide-react";
+import {
+  getHardcodedRootNode,
+  resolveHardcodedNode,
+} from "@/lib/hardcoded-support-flows";
 
 type ChatStage =
   | "initial"
@@ -22,6 +26,7 @@ type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  options?: string[];
 };
 
 type ChatbotApiResponse = {
@@ -45,12 +50,7 @@ type CxChatWidgetProps = {
 
 const GREETING = "Hi! I'm TPT bot.";
 const INTRO_PROMPT =
-  "Start with a common question below or type your own message for fast help.";
-const STARTER_QUESTIONS = [
-  "I need help logging in",
-  "I'm having issues printing a file",
-  "I need assistance purchasing",
-] as const;
+  "Start with a suggested topic below or type your own message for fast help.";
 const CHATBOT_USERTYPE = " ";
 const MAX_MESSAGES_EXCHANGED = 50;
 const LIMIT_REACHED_MESSAGE =
@@ -180,6 +180,21 @@ function renderFormattedText(content: string, keyPrefix: string) {
   });
 }
 
+function buildInitialMessages(): ChatMessage[] {
+  const rootNode = getHardcodedRootNode();
+
+  return [
+    { id: buildId(), role: "assistant", content: GREETING },
+    { id: buildId(), role: "assistant", content: INTRO_PROMPT },
+    {
+      id: buildId(),
+      role: "assistant",
+      content: rootNode.response,
+      options: rootNode.options,
+    },
+  ];
+}
+
 export function CxChatWidget({
   onEscalate,
   openRequestKey,
@@ -188,10 +203,7 @@ export function CxChatWidget({
   const [isOpen, setIsOpen] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
   const [stage, setStage] = useState<ChatStage>("initial");
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: buildId(), role: "assistant", content: GREETING },
-    { id: buildId(), role: "assistant", content: INTRO_PROMPT },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>(buildInitialMessages);
   const [modelMessages, setModelMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -206,6 +218,9 @@ export function CxChatWidget({
   const [feedbackChoice, setFeedbackChoice] = useState<"yes" | "no" | null>(null);
   const [feedbackReason, setFeedbackReason] = useState("");
   const [feedbackRating, setFeedbackRating] = useState<number | null>(null);
+  const [currentHardcodedNodeId, setCurrentHardcodedNodeId] = useState<string | null>(
+    null,
+  );
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -282,8 +297,12 @@ export function CxChatWidget({
     [feedbackChoice, feedbackReason, messages, originalQuestion, rating, restatedQuestion],
   );
 
-  function appendMessage(role: ChatMessage["role"], content: string) {
-    setMessages((current) => [...current, { id: buildId(), role, content }]);
+  function appendMessage(
+    role: ChatMessage["role"],
+    content: string,
+    options?: string[],
+  ) {
+    setMessages((current) => [...current, { id: buildId(), role, content, options }]);
   }
 
   function clearExitFeedback() {
@@ -295,10 +314,7 @@ export function CxChatWidget({
 
   function resetConversation() {
     setStage("initial");
-    setMessages([
-      { id: buildId(), role: "assistant", content: GREETING },
-      { id: buildId(), role: "assistant", content: INTRO_PROMPT },
-    ]);
+    setMessages(buildInitialMessages());
     setModelMessages([]);
     setInput("");
     setIsLoading(false);
@@ -306,6 +322,7 @@ export function CxChatWidget({
     setRestatedQuestion(null);
     setRating(null);
     setPreviousResponseId(null);
+    setCurrentHardcodedNodeId(null);
     clearExitFeedback();
   }
 
@@ -338,6 +355,14 @@ export function CxChatWidget({
       return;
     }
 
+    const hardcodedNode = resolveHardcodedNode(trimmedQuestion, currentHardcodedNodeId);
+    if (hardcodedNode) {
+      appendMessage("assistant", hardcodedNode.response, hardcodedNode.options);
+      setCurrentHardcodedNodeId(hardcodedNode.id);
+      setStage("initial");
+      return;
+    }
+
     if (modelMessages.length >= MAX_MESSAGES_EXCHANGED) {
       appendMessage("assistant", LIMIT_REACHED_MESSAGE);
       setStage("limit_reached");
@@ -351,6 +376,7 @@ export function CxChatWidget({
 
     setIsLoading(true);
     setStage("answering");
+    setCurrentHardcodedNodeId(null);
 
     try {
       const response = await fetch(chatbotEndpoint, {
@@ -504,14 +530,22 @@ export function CxChatWidget({
     !pendingExitAction &&
     (stage === "initial" || stage === "awaiting_rephrase") &&
     !isLoading;
+  const disabledPlaceholder = pendingExitAction
+    ? "Complete the prompt above to close or reset."
+    : stage === "limit_reached"
+      ? "This chat has ended. Start a new conversation to continue."
+      : stage === "escalated"
+        ? "Continue in the contact form."
+        : "Complete the step above to continue.";
   const panelBottom = isOpen ? Math.max(16, keyboardInset + 16) : 112;
   const panelHeight = `min(620px, calc(100dvh - ${keyboardInset + 32}px))`;
   const showWelcomeState =
     !isLoading &&
-    messages.length <= 2 &&
+    messages.length <= 3 &&
     !originalQuestion &&
     !restatedQuestion &&
     stage !== "escalated";
+  const rootOptions = getHardcodedRootNode().options ?? [];
 
   return (
     <>
@@ -587,7 +621,7 @@ export function CxChatWidget({
                     Choose one to get started, or type your own question below.
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    {STARTER_QUESTIONS.map((question) => (
+                    {rootOptions.map((question) => (
                       <button
                         key={question}
                         type="button"
@@ -611,13 +645,37 @@ export function CxChatWidget({
                     >
                       <div
                         className={clsx(
-                          "max-w-[88%] whitespace-pre-wrap break-words rounded-[1.35rem] px-4 py-3 text-sm leading-6",
+                          "max-w-[88%]",
                           isAssistant
-                            ? "rounded-tl-md border border-slate-200 bg-[#fafafa] text-slate-700"
-                            : "rounded-tr-md bg-[#14473f] text-white shadow-[0_18px_36px_-24px_rgba(20,71,63,0.4)]",
+                            ? "text-slate-700"
+                            : "text-white",
                         )}
                       >
-                        {renderMessageContent(message.content)}
+                        <div
+                          className={clsx(
+                            "whitespace-pre-wrap break-words rounded-[1.35rem] px-4 py-3 text-sm leading-6",
+                            isAssistant
+                              ? "rounded-tl-md border border-slate-200 bg-[#fafafa]"
+                              : "rounded-tr-md bg-[#14473f] shadow-[0_18px_36px_-24px_rgba(20,71,63,0.4)]",
+                          )}
+                        >
+                          {renderMessageContent(message.content)}
+                        </div>
+                        {isAssistant && message.options?.length ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {message.options.map((option) => (
+                              <button
+                                key={`${message.id}-${option}`}
+                                type="button"
+                                className="rounded-full border border-slate-300 bg-white px-3 py-2 text-left text-sm font-medium text-[#14473f] transition hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                onClick={() => handleStarterQuestionSelect(option)}
+                                disabled={!canType || isLoading}
+                              >
+                                {option}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   );
@@ -644,7 +702,7 @@ export function CxChatWidget({
                       Start with one of these, or type your own question below.
                     </p>
                     <div className="mt-4 flex flex-wrap gap-2">
-                      {STARTER_QUESTIONS.map((question) => (
+                      {rootOptions.map((question) => (
                         <button
                           key={question}
                           type="button"
@@ -690,7 +748,7 @@ export function CxChatWidget({
                     ? stage === "awaiting_rephrase"
                       ? "Restate your question..."
                       : "Ask a question..."
-                    : "Use the buttons above to continue"
+                    : disabledPlaceholder
                 }
                 disabled={!canType || isLoading}
                 rows={1}
