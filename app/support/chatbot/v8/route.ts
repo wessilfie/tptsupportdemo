@@ -20,9 +20,6 @@ export async function POST(req: Request) {
     prompt: {
       id: v8PromptId,
       version: v8PromptVersion,
-      variables: {
-        usertype: payload.usertype,
-      },
     },
   };
 
