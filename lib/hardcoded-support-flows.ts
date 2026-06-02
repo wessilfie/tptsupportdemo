@@ -98,7 +98,7 @@ const NODES: Record<string, HardcodedSupportNode> = {
     id: "printing_permission_letter",
     label: "I need a permission letter to print",
     response:
-      "TPT doesn't provide a universal permission letter inside this flow. Printing permissions depend on the resource license you purchased. If you're trying to confirm reuse rights, check the resource description and the seller's terms, or contact TPT CX for a licensing review.",
+      "You can access a printable printing authorization for resources in the \"My Purchases\" section of your account.\n\n[My Purchases](https://www.teacherspayteachers.com/My-Purchases)",
   },
   opening_files: {
     id: "opening_files",
