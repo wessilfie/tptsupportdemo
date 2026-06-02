@@ -115,17 +115,22 @@ function renderPlainTextWithUrls(content: string, keyPrefix: string) {
     }
 
     if (part.match(URL_PATTERN)) {
-      const href = part.startsWith("http") ? part : `https://${part}`;
+      const trailing = part.match(/([.,!?)\]]+)$/)?.[1] ?? "";
+      const url = trailing ? part.slice(0, -trailing.length) : part;
+      const href = url.startsWith("http") ? url : `https://${url}`;
       return (
-        <a
-          key={`${keyPrefix}-url-${href}-${index}`}
-          href={href}
-          target="_blank"
-          rel="noreferrer"
-          className="break-words font-medium text-[#1b5e4b] underline underline-offset-2"
-        >
-          {part}
-        </a>
+        <>
+          <a
+            key={`${keyPrefix}-url-${href}-${index}`}
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="break-words font-medium text-[#1b5e4b] underline underline-offset-2"
+          >
+            {url}
+          </a>
+          {trailing}
+        </>
       );
     }
 
