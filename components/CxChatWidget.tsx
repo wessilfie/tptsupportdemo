@@ -181,23 +181,23 @@ function renderFormattedText(content: string, keyPrefix: string) {
   });
 }
 
-function buildInitialMessages(greetingText: string = GREETING): ChatMessage[] {
-  const rootNode = getHardcodedRootNode();
+function buildGreetingMessage(greetingText: string = GREETING): ChatMessage {
+  return { id: buildId(), role: "assistant", content: greetingText };
+}
 
-  return [
-    {
-      id: buildId(),
-      role: "assistant",
-      content: greetingText,
-    },
-    {
-      id: buildId(),
-      role: "assistant",
-      content: COMMON_QUESTION_PROMPT,
-      options: rootNode.options,
-      optionVariant: "quick-reply",
-    },
-  ];
+function buildTopicsMessage(): ChatMessage {
+  const rootNode = getHardcodedRootNode();
+  return {
+    id: buildId(),
+    role: "assistant",
+    content: COMMON_QUESTION_PROMPT,
+    options: rootNode.options,
+    optionVariant: "quick-reply",
+  };
+}
+
+function buildInitialMessages(greetingText: string = GREETING): ChatMessage[] {
+  return [buildGreetingMessage(greetingText), buildTopicsMessage()];
 }
 
 export function CxChatWidget({
@@ -210,7 +210,8 @@ export function CxChatWidget({
   const [isOpen, setIsOpen] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
   const [stage, setStage] = useState<ChatStage>("initial");
-  const [messages, setMessages] = useState<ChatMessage[]>(() => buildInitialMessages(greeting));
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [buildGreetingMessage(greeting)]);
+  const [greetingKey, setGreetingKey] = useState(0);
   const [modelMessages, setModelMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -243,6 +244,14 @@ export function CxChatWidget({
       setShowTooltip(false);
     }
   }, [openRequestKey]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const timer = window.setTimeout(() => {
+      setMessages((prev) => [...prev, buildTopicsMessage()]);
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, greetingKey]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -325,7 +334,8 @@ export function CxChatWidget({
 
   function resetConversationState() {
     setStage("initial");
-    setMessages(buildInitialMessages(greeting));
+    setGreetingKey((k) => k + 1);
+    setMessages([buildGreetingMessage(greeting)]);
     setModelMessages([]);
     setInput("");
     setIsLoading(false);
