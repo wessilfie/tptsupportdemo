@@ -584,10 +584,7 @@ export function CxChatWidget({
           <button
             key={`${message.id}-${option}`}
             type="button"
-            className={clsx(
-              "rounded-full border border-[#d9d9d9] bg-white px-3.5 py-2 text-left text-[13px] font-medium text-[#2d2d2d] transition hover:border-[#91e8b3] hover:bg-[#f8fff9] disabled:cursor-not-allowed disabled:opacity-60",
-              option.length > 20 && "basis-full",
-            )}
+            className="rounded-full border border-[#d9d9d9] bg-white px-3.5 py-2 text-left text-[13px] font-medium text-[#2d2d2d] transition hover:border-[#91e8b3] hover:bg-[#f8fff9] disabled:cursor-not-allowed disabled:opacity-60"
             onClick={() => handleStarterQuestionSelect(option)}
             disabled={!canSend}
           >
