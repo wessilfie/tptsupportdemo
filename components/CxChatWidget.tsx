@@ -312,7 +312,7 @@ export function CxChatWidget({
     setFeedbackRating(null);
   }
 
-  function resetConversation() {
+  function resetConversationState() {
     setStage("initial");
     setMessages(buildInitialMessages());
     setModelMessages([]);
@@ -326,9 +326,13 @@ export function CxChatWidget({
     clearExitFeedback();
   }
 
+  function resetConversation() {
+    resetConversationState();
+  }
+
   function finalizeExit(action: "close" | "reset") {
     if (action === "close") {
-      clearExitFeedback();
+      resetConversationState();
       setIsOpen(false);
       return;
     }
@@ -513,6 +517,10 @@ export function CxChatWidget({
 
     const nextRating = feedbackChoice === "yes" ? feedbackRating : null;
     if (feedbackChoice === "yes" && nextRating === null) {
+      return;
+    }
+
+    if (feedbackChoice === "no" && !feedbackReason.trim()) {
       return;
     }
 
@@ -853,7 +861,7 @@ export function CxChatWidget({
                         value={feedbackReason}
                         onChange={(event) => setFeedbackReason(event.target.value)}
                         rows={4}
-                        placeholder="Optional feedback"
+                        placeholder="Tell us what went wrong"
                         className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
                       />
                     </div>
@@ -873,10 +881,15 @@ export function CxChatWidget({
                       onClick={submitExitFeedback}
                       disabled={
                         !feedbackChoice ||
-                        (feedbackChoice === "yes" && feedbackRating === null)
+                        (feedbackChoice === "yes" && feedbackRating === null) ||
+                        (feedbackChoice === "no" && !feedbackReason.trim())
                       }
                     >
-                      {pendingExitAction === "close" ? "Close chat" : "Reset chat"}
+                      {pendingExitAction === "close"
+                        ? feedbackChoice === "no"
+                          ? "Send feedback & close"
+                          : "Close chat"
+                        : "Reset chat"}
                     </button>
                   </div>
                 </div>
