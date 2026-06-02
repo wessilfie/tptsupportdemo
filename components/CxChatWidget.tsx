@@ -1,11 +1,10 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import {
-  Apple,
   MessageCircleQuestion,
-  Plus,
   RotateCcw,
   Send,
+  Sparkles,
   SquarePen,
   Star,
   X,
@@ -27,6 +26,7 @@ type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   options?: string[];
+  optionVariant?: "quick-reply";
 };
 
 type ChatbotApiResponse = {
@@ -48,10 +48,9 @@ type CxChatWidgetProps = {
   chatbotEndpoint?: string;
 };
 
-const GREETING = "Hi! I'm TPT bot.";
-const INTRO_PROMPT =
-  "Start with a suggested topic below or type your own message for fast help.";
-const CHATBOT_USERTYPE = " ";
+const GREETING = "Hi! I'm TPT support.";
+const COMMON_QUESTION_PROMPT =
+  "Great. Let's start with a common question below or type your own message for fast help.";
 const MAX_MESSAGES_EXCHANGED = 50;
 const LIMIT_REACHED_MESSAGE =
   "Sorry, I can't help with this request anymore. Please connect with the TPT CX team at teacherspayteachers.com/Contact for further assistance.";
@@ -184,13 +183,17 @@ function buildInitialMessages(): ChatMessage[] {
   const rootNode = getHardcodedRootNode();
 
   return [
-    { id: buildId(), role: "assistant", content: GREETING },
-    { id: buildId(), role: "assistant", content: INTRO_PROMPT },
     {
       id: buildId(),
       role: "assistant",
-      content: rootNode.response,
+      content: GREETING,
+    },
+    {
+      id: buildId(),
+      role: "assistant",
+      content: COMMON_QUESTION_PROMPT,
       options: rootNode.options,
+      optionVariant: "quick-reply",
     },
   ];
 }
@@ -301,8 +304,12 @@ export function CxChatWidget({
     role: ChatMessage["role"],
     content: string,
     options?: string[],
+    optionVariant?: ChatMessage["optionVariant"],
   ) {
-    setMessages((current) => [...current, { id: buildId(), role, content, options }]);
+    setMessages((current) => [
+      ...current,
+      { id: buildId(), role, content, options, optionVariant },
+    ]);
   }
 
   function clearExitFeedback() {
@@ -312,7 +319,7 @@ export function CxChatWidget({
     setFeedbackRating(null);
   }
 
-  function resetConversation() {
+  function resetConversationState() {
     setStage("initial");
     setMessages(buildInitialMessages());
     setModelMessages([]);
@@ -326,9 +333,13 @@ export function CxChatWidget({
     clearExitFeedback();
   }
 
+  function resetConversation() {
+    resetConversationState();
+  }
+
   function finalizeExit(action: "close" | "reset") {
     if (action === "close") {
-      clearExitFeedback();
+      resetConversationState();
       setIsOpen(false);
       return;
     }
@@ -386,7 +397,7 @@ export function CxChatWidget({
         },
         body: JSON.stringify({
           messages: nextModelMessages.map(({ role, content }) => ({ role, content })),
-          usertype: CHATBOT_USERTYPE,
+          usertype: "",
           question: trimmedQuestion,
           previous_response_id: previousResponseId,
         }),
@@ -425,7 +436,7 @@ export function CxChatWidget({
           "I should hand this over to the contact form so the CX team can follow up directly.",
         );
         const context: ChatHandoffContext = {
-          userType: CHATBOT_USERTYPE,
+          userType: null,
           originalQuestion: originalQuestion || trimmedQuestion,
           restatedQuestion,
           transcript: [...messages, { id: buildId(), role: "user", content: trimmedQuestion }],
@@ -484,7 +495,7 @@ export function CxChatWidget({
   function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      if (!canType || !input.trim() || isLoading) {
+      if (!canSend || !input.trim()) {
         return;
       }
 
@@ -493,7 +504,7 @@ export function CxChatWidget({
   }
 
   function handleStarterQuestionSelect(question: string) {
-    if (!canType || isLoading) {
+    if (!canSend) {
       return;
     }
 
@@ -516,6 +527,10 @@ export function CxChatWidget({
       return;
     }
 
+    if (feedbackChoice === "no" && !feedbackReason.trim()) {
+      return;
+    }
+
     setRating(nextRating);
     console.log("TPT CX chatbot transcript", {
       ...transcriptForLogging,
@@ -526,7 +541,11 @@ export function CxChatWidget({
     finalizeExit(pendingExitAction);
   }
 
-  const canType =
+  const canEdit =
+    !pendingExitAction &&
+    stage !== "limit_reached" &&
+    stage !== "escalated";
+  const canSend =
     !pendingExitAction &&
     (stage === "initial" || stage === "awaiting_rephrase") &&
     !isLoading;
@@ -536,16 +555,34 @@ export function CxChatWidget({
       ? "This chat has ended. Start a new conversation to continue."
       : stage === "escalated"
         ? "Continue in the contact form."
-        : "Complete the step above to continue.";
+        : "Ask a question...";
   const panelBottom = isOpen ? Math.max(16, keyboardInset + 16) : 112;
-  const panelHeight = `min(620px, calc(100dvh - ${keyboardInset + 32}px))`;
-  const showWelcomeState =
-    !isLoading &&
-    messages.length <= 3 &&
-    !originalQuestion &&
-    !restatedQuestion &&
-    stage !== "escalated";
-  const rootOptions = getHardcodedRootNode().options ?? [];
+  const panelHeight = `min(640px, calc(100dvh - ${keyboardInset + 32}px))`;
+
+  function renderOptionButtons(message: ChatMessage) {
+    if (!message.options?.length) {
+      return null;
+    }
+
+    return (
+      <div className="mt-3 flex flex-wrap gap-2">
+        {message.options.map((option) => (
+          <button
+            key={`${message.id}-${option}`}
+            type="button"
+            className={clsx(
+              "rounded-full border border-[#d9d9d9] bg-white px-3.5 py-2 text-left text-[13px] font-medium text-[#2d2d2d] transition hover:border-[#91e8b3] hover:bg-[#f8fff9] disabled:cursor-not-allowed disabled:opacity-60",
+              option.length > 20 && "basis-full",
+            )}
+            onClick={() => handleStarterQuestionSelect(option)}
+            disabled={!canSend}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -572,200 +609,132 @@ export function CxChatWidget({
 
       {isOpen ? (
         <section
-          className="fixed left-3 right-3 z-50 flex flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_42px_100px_-44px_rgba(15,23,42,0.34)] sm:left-auto sm:right-6 sm:w-[430px]"
+          className="fixed left-3 right-3 z-50 flex flex-col overflow-hidden rounded-[1.6rem] border border-[#d8d8d8] bg-white shadow-[0_16px_42px_rgba(15,23,42,0.18)] sm:left-auto sm:right-6 sm:w-[332px]"
           style={{ bottom: `${panelBottom}px`, height: panelHeight }}
         >
-          <header className="flex items-center justify-between px-6 py-5">
+          <header className="flex items-center justify-between px-5 pb-3 pt-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#14473f] text-white">
-                <Apple className="size-5" />
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#111111] text-[#8ef0b5]">
+                <Sparkles className="size-3.5" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-slate-900">TPT bot</p>
+                <p className="text-[15px] font-semibold text-[#232323]">TPT support</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-slate-500">
+            <div className="flex items-center gap-1 text-[#232323]">
               <button
                 type="button"
-                className="flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-slate-100 hover:text-slate-900"
+                className="flex h-8 w-8 items-center justify-center rounded-full transition hover:bg-slate-100"
                 aria-label="New conversation"
                 onClick={() => handleExitIntent("reset")}
               >
-                <SquarePen className="size-6" />
+                <SquarePen className="size-4.5" />
               </button>
               <button
                 type="button"
-                className="flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-slate-100 hover:text-slate-900"
+                className="flex h-8 w-8 items-center justify-center rounded-full transition hover:bg-slate-100"
                 aria-label="Reset conversation"
                 onClick={() => handleExitIntent("reset")}
               >
-                <RotateCcw className="size-6" />
+                <RotateCcw className="size-4.5" />
               </button>
               <button
                 type="button"
                 aria-label="Close TPT CX chat"
-                className="flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-slate-100 hover:text-slate-900"
+                className="flex h-8 w-8 items-center justify-center rounded-full transition hover:bg-slate-100"
                 onClick={() => handleExitIntent("close")}
               >
-                <X className="size-7" />
+                <X className="size-4.5" />
               </button>
             </div>
           </header>
 
-          <div className="flex-1 overflow-y-auto px-4 pb-4 pt-1">
-            {showWelcomeState ? (
-              <div className="flex min-h-full flex-col justify-start px-2 pb-6 pt-2">
-                <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.2)]">
-                  <p className="text-sm font-semibold text-slate-900">Popular questions</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-600">
-                    Choose one to get started, or type your own question below.
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {rootOptions.map((question) => (
-                      <button
-                        key={question}
-                        type="button"
-                        className="rounded-full bg-[#f3f4f6] px-3 py-2 text-sm font-medium text-slate-800 transition hover:bg-slate-200"
-                        onClick={() => handleStarterQuestionSelect(question)}
-                      >
-                        {question}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {messages.map((message) => {
-                  const isAssistant = message.role === "assistant";
-                  return (
-                    <div
-                      key={message.id}
-                      className={clsx("flex", isAssistant ? "justify-start" : "justify-end")}
-                    >
+          <div className="flex-1 overflow-y-auto px-5 pb-4 pt-1">
+            <div className="space-y-3">
+              {messages.map((message) => {
+                const isAssistant = message.role === "assistant";
+                return (
+                  <div
+                    key={message.id}
+                    className={clsx("flex", isAssistant ? "justify-start" : "justify-end")}
+                  >
+                    <div className={clsx("max-w-[88%]", isAssistant ? "text-[#2d2d2d]" : "")}>
                       <div
                         className={clsx(
-                          "max-w-[88%]",
+                          "whitespace-pre-wrap break-words text-[13px] leading-6",
                           isAssistant
-                            ? "text-slate-700"
-                            : "text-white",
+                            ? "rounded-[1rem] bg-[#f1f0ec] px-4 py-3 text-[#2d2d2d]"
+                            : "inline-flex rounded-[0.8rem] bg-[#63e0a5] px-3 py-2 font-medium text-[#143427]",
                         )}
                       >
-                        <div
-                          className={clsx(
-                            "whitespace-pre-wrap break-words rounded-[1.35rem] px-4 py-3 text-sm leading-6",
-                            isAssistant
-                              ? "rounded-tl-md border border-slate-200 bg-[#fafafa]"
-                              : "rounded-tr-md bg-[#14473f] shadow-[0_18px_36px_-24px_rgba(20,71,63,0.4)]",
-                          )}
-                        >
-                          {renderMessageContent(message.content)}
-                        </div>
-                        {isAssistant && message.options?.length ? (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {message.options.map((option) => (
-                              <button
-                                key={`${message.id}-${option}`}
-                                type="button"
-                                className="rounded-full border border-slate-300 bg-white px-3 py-2 text-left text-sm font-medium text-[#14473f] transition hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
-                                onClick={() => handleStarterQuestionSelect(option)}
-                                disabled={!canType || isLoading}
-                              >
-                                {option}
-                              </button>
-                            ))}
-                          </div>
-                        ) : null}
+                        {renderMessageContent(message.content)}
                       </div>
+                      {isAssistant ? renderOptionButtons(message) : null}
                     </div>
-                  );
-                })}
+                  </div>
+                );
+              })}
 
-                {isLoading ? (
-                  <div className="flex justify-start">
-                    <div className="flex items-center gap-1 rounded-[1.35rem] rounded-tl-md border border-slate-200 bg-[#fafafa] px-4 py-3">
+              {isLoading ? (
+                <div className="flex justify-start">
+                  <div className="rounded-[1rem] bg-[#f1f0ec] px-4 py-3">
+                    <div className="flex items-center gap-1">
                       {[0, 1, 2].map((dot) => (
                         <span
                           key={dot}
-                          className="h-2 w-2 animate-bounce rounded-full bg-emerald-500"
+                          className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#77dba4]"
                           style={{ animationDelay: `${dot * 0.15}s` }}
                         />
                       ))}
                     </div>
                   </div>
-                ) : null}
+                </div>
+              ) : null}
 
-                {stage === "initial" && !originalQuestion && !isLoading ? (
-                  <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4">
-                    <p className="text-sm font-semibold text-slate-900">Popular questions</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-600">
-                      Start with one of these, or type your own question below.
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {rootOptions.map((question) => (
-                        <button
-                          key={question}
-                          type="button"
-                          className="rounded-full bg-[#f3f4f6] px-3 py-2 text-sm font-medium text-slate-800 transition hover:bg-slate-200"
-                          onClick={() => handleStarterQuestionSelect(question)}
-                        >
-                          {question}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
+              {stage === "escalated" ? (
+                <div className="rounded-[1rem] bg-[#f1f0ec] px-4 py-3 text-[13px] leading-6 text-[#2d2d2d]">
+                  We opened the matching contact flow so you can finish the handoff there.
+                </div>
+              ) : null}
 
-                {stage === "escalated" ? (
-                  <div className="rounded-[1.35rem] border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-slate-700">
-                    We opened the matching contact flow so you can finish the handoff there.
-                  </div>
-                ) : null}
-
-                <div ref={bottomRef} />
-              </div>
-            )}
+              <div ref={bottomRef} />
+            </div>
           </div>
 
           <form
             onSubmit={handleSend}
-            className="border-t border-slate-100 bg-white px-5 pb-5 pt-4"
+            className="bg-white px-4 pb-3 pt-2"
           >
-            <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-3 shadow-[0_18px_36px_-30px_rgba(15,23,42,0.24)]">
-              <button
-                type="button"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-800 transition hover:bg-slate-100"
-                aria-label="Add context"
-              >
-                <Plus className="size-6" />
-              </button>
+            <div className="flex items-center gap-2 rounded-full border border-[#d3d3d3] bg-white px-3 py-2">
               <textarea
                 ref={inputRef}
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 placeholder={
-                  canType
-                    ? stage === "awaiting_rephrase"
-                      ? "Restate your question..."
-                      : "Ask a question..."
+                  canEdit
+                    ? isLoading
+                      ? "Keep typing. You can send when the bot replies."
+                      : stage === "awaiting_rephrase"
+                        ? "Restate your question..."
+                        : "Ask a question..."
                     : disabledPlaceholder
                 }
-                disabled={!canType || isLoading}
+                disabled={!canEdit}
                 rows={1}
                 enterKeyHint="send"
                 onKeyDown={handleComposerKeyDown}
-                className="max-h-32 min-h-[28px] flex-1 resize-none bg-transparent px-1 py-1 text-sm leading-6 text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:text-slate-400"
+                className="max-h-24 min-h-[22px] flex-1 resize-none bg-transparent px-1 py-1 text-[13px] leading-5 text-[#232323] outline-none placeholder:text-[#9b9b9b] disabled:cursor-not-allowed disabled:text-[#9b9b9b]"
               />
               <button
                 type="submit"
-                disabled={!canType || !input.trim() || isLoading}
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#171717] text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                disabled={!canSend || !input.trim()}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#8ef0b5] text-[#206040] transition hover:bg-[#78e4a4] disabled:cursor-not-allowed disabled:bg-[#d8efe1] disabled:text-[#8db9a0]"
                 aria-label="Send message"
               >
                 <Send className="size-4" />
               </button>
             </div>
-            <p className="mt-4 text-center text-xs leading-5 text-slate-500">
+            <p className="mt-2 text-center text-[11px] leading-4 text-[#8f8f8f]">
               AI support can make mistakes
             </p>
           </form>
@@ -853,7 +822,7 @@ export function CxChatWidget({
                         value={feedbackReason}
                         onChange={(event) => setFeedbackReason(event.target.value)}
                         rows={4}
-                        placeholder="Optional feedback"
+                        placeholder="Tell us what went wrong"
                         className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
                       />
                     </div>
@@ -873,10 +842,15 @@ export function CxChatWidget({
                       onClick={submitExitFeedback}
                       disabled={
                         !feedbackChoice ||
-                        (feedbackChoice === "yes" && feedbackRating === null)
+                        (feedbackChoice === "yes" && feedbackRating === null) ||
+                        (feedbackChoice === "no" && !feedbackReason.trim())
                       }
                     >
-                      {pendingExitAction === "close" ? "Close chat" : "Reset chat"}
+                      {pendingExitAction === "close"
+                        ? feedbackChoice === "no"
+                          ? "Send feedback & close"
+                          : "Close chat"
+                        : "Reset chat"}
                     </button>
                   </div>
                 </div>

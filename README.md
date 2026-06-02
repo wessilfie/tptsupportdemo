@@ -44,6 +44,8 @@ OPENAI_SUPPORT_V4_PROMPT_ID=pmpt_69cd0f0626e88197ab6100e38b46b65a0ebc4aff65bc510
 OPENAI_SUPPORT_V4_PROMPT_VERSION=4
 OPENAI_SUPPORT_V7_PROMPT_ID=pmpt_69cd0f0626e88197ab6100e38b46b65a0ebc4aff65bc5102
 OPENAI_SUPPORT_V7_PROMPT_VERSION=7
+OPENAI_SUPPORT_V8_PROMPT_ID=pmpt_69cd0f0626e88197ab6100e38b46b65a0ebc4aff65bc5102
+OPENAI_SUPPORT_V8_PROMPT_VERSION=8
 ```
 
 Notes:
@@ -52,8 +54,9 @@ Notes:
 - `OPENAI_SUPPORT_PROMPT_VERSION` is typically `1` unless you want a different saved prompt version
 - `OPENAI_SUPPORT_V4_PROMPT_ID` and `OPENAI_SUPPORT_V4_PROMPT_VERSION` control `/support/chatbot/v4`
 - `OPENAI_SUPPORT_V7_PROMPT_ID` and `OPENAI_SUPPORT_V7_PROMPT_VERSION` control the prompt-backed `/support/chatbot/v7` path
+- `OPENAI_SUPPORT_V8_PROMPT_ID` and `OPENAI_SUPPORT_V8_PROMPT_VERSION` control the prompt-backed `/support/chatbot/v8` path
 - the bot is currently prompt-based, not ChatKit-based
-- `/dynamic-v4` uses prompt version 4, while `/dynamic-v7` uses prompt version 7
+- `/dynamic-v4` uses prompt version 4, `/dynamic-v7` uses prompt version 7, and `/dynamic-v8` uses prompt version 8
 
 ## Local development
 

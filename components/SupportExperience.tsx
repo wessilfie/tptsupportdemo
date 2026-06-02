@@ -1778,12 +1778,20 @@ function App() {
                   To get started, we&apos;ll walk you through a few quick steps. We&apos;ll only ask for the details we need so we can get your request to the right team as quickly as possible.
                 </p>
               </div>
-              <Link
-                href="/dynamiccontact"
-                className="rounded-full border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-medium text-[#14473f] transition hover:border-emerald-300 hover:bg-emerald-100"
-              >
-                Open Contact Us form
-              </Link>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href="/dynamiccontact"
+                  className="rounded-full border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-medium text-[#14473f] transition hover:border-emerald-300 hover:bg-emerald-100"
+                >
+                  Open Contact Us form
+                </Link>
+                <Link
+                  href="/dynamic-v8"
+                  className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  Open Dynamic V8
+                </Link>
+              </div>
             </div>
           </div>
 
