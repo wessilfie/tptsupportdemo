@@ -54,8 +54,9 @@ const GREETING = "Hi! I'm TPT support.";
 const MAX_MESSAGES_EXCHANGED = 50;
 const LIMIT_REACHED_MESSAGE =
   "Sorry, I can't help with this request anymore. Please connect with the TPT CX team at teacherspayteachers.com/Contact for further assistance.";
-const MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/gi;
+const MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\(((?:https?:\/\/|mailto:)[^)\s]+)\)/gi;
 const URL_PATTERN = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+const EMAIL_PATTERN = /([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/g;
 const BOLD_PATTERN = /(\*\*[^*]+\*\*)/g;
 
 function buildId() {
@@ -105,11 +106,32 @@ function renderMessageContent(content: string) {
 }
 
 function renderPlainTextWithUrls(content: string, keyPrefix: string) {
-  const parts = content.split(URL_PATTERN);
+  const combinedPattern = new RegExp(
+    `(${URL_PATTERN.source}|${EMAIL_PATTERN.source})`,
+    "gi",
+  );
+  const parts = content.split(combinedPattern).filter((p) => p !== undefined);
 
   return parts.map((part, index) => {
     if (!part) {
       return null;
+    }
+
+    if (part.match(EMAIL_PATTERN)) {
+      const trailing = part.match(/([.,!?)\]]+)$/)?.[1] ?? "";
+      const email = trailing ? part.slice(0, -trailing.length) : part;
+      return (
+        <>
+          <a
+            key={`${keyPrefix}-email-${email}-${index}`}
+            href={`mailto:${email}`}
+            className="break-words font-medium text-[#1b5e4b] underline underline-offset-2"
+          >
+            {email}
+          </a>
+          {trailing}
+        </>
+      );
     }
 
     if (part.match(URL_PATTERN)) {
