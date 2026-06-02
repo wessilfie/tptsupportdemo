@@ -46,6 +46,8 @@ type CxChatWidgetProps = {
   onEscalate: (context: ChatHandoffContext) => void;
   openRequestKey?: number;
   chatbotEndpoint?: string;
+  botName?: string;
+  greeting?: string;
 };
 
 const GREETING = "Hi! I'm TPT support.";
@@ -179,14 +181,14 @@ function renderFormattedText(content: string, keyPrefix: string) {
   });
 }
 
-function buildInitialMessages(): ChatMessage[] {
+function buildInitialMessages(greetingText: string = GREETING): ChatMessage[] {
   const rootNode = getHardcodedRootNode();
 
   return [
     {
       id: buildId(),
       role: "assistant",
-      content: GREETING,
+      content: greetingText,
     },
     {
       id: buildId(),
@@ -202,11 +204,13 @@ export function CxChatWidget({
   onEscalate,
   openRequestKey,
   chatbotEndpoint = "/support/chatbot",
+  botName = "TPT support",
+  greeting = GREETING,
 }: CxChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
   const [stage, setStage] = useState<ChatStage>("initial");
-  const [messages, setMessages] = useState<ChatMessage[]>(buildInitialMessages);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => buildInitialMessages(greeting));
   const [modelMessages, setModelMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -321,7 +325,7 @@ export function CxChatWidget({
 
   function resetConversationState() {
     setStage("initial");
-    setMessages(buildInitialMessages());
+    setMessages(buildInitialMessages(greeting));
     setModelMessages([]);
     setInput("");
     setIsLoading(false);
@@ -618,7 +622,7 @@ export function CxChatWidget({
                 <Sparkles className="size-3.5" />
               </div>
               <div>
-                <p className="text-[15px] font-semibold text-[#232323]">TPT support</p>
+                <p className="text-[15px] font-semibold text-[#232323]">{botName}</p>
               </div>
             </div>
             <div className="flex items-center gap-1 text-[#232323]">
