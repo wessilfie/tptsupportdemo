@@ -79,3 +79,72 @@ export function chatbotErrorResponse(error: unknown) {
     { status: 502 },
   );
 }
+
+function ensureTerminalPunctuation(text: string) {
+  if (!text) {
+    return text;
+  }
+
+  if (/[.!?:"')\]]$/.test(text)) {
+    return text;
+  }
+
+  if (/(https?:\/\/|www\.)\S+$/.test(text)) {
+    return text;
+  }
+
+  if (/\[[^\]]+\]\((?:https?:\/\/|mailto:)[^)]+\)$/.test(text)) {
+    return text;
+  }
+
+  return `${text}.`;
+}
+
+function normalizeLine(line: string) {
+  const trimmed = line.trim().replace(/[ \t]{2,}/g, " ");
+
+  if (!trimmed) {
+    return "";
+  }
+
+  const bulletMatch = trimmed.match(/^([-*•])\s*(.*)$/);
+  if (bulletMatch) {
+    const [, bullet, content] = bulletMatch;
+    return `${bullet} ${content.trim().replace(/[ \t]{2,}/g, " ")}`;
+  }
+
+  return trimmed;
+}
+
+export function normalizeChatbotAnswer(answer: string) {
+  const normalizedParagraphs = answer
+    .replace(/\r\n?/g, "\n")
+    .trim()
+    .split(/\n{2,}/)
+    .map((paragraph) => {
+      const normalizedLines = paragraph
+        .split("\n")
+        .map(normalizeLine)
+        .filter(Boolean);
+
+      if (!normalizedLines.length) {
+        return "";
+      }
+
+      const allBulletLines = normalizedLines.every((line) => /^[-*•]\s+/.test(line));
+      if (allBulletLines) {
+        return normalizedLines.join("\n");
+      }
+
+      if (normalizedLines.length === 1) {
+        return ensureTerminalPunctuation(normalizedLines[0]);
+      }
+
+      return normalizedLines
+        .map((line) => (/^[-*•]\s+/.test(line) ? line : ensureTerminalPunctuation(line)))
+        .join("\n");
+    })
+    .filter(Boolean);
+
+  return normalizedParagraphs.join("\n\n");
+}

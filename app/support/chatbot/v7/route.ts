@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import {
   chatbotErrorResponse,
   getChatbotConfig,
+  normalizeChatbotAnswer,
   parseChatbotRequest,
 } from "@/lib/chatbot-route";
 
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
     }
 
     return Response.json({
-      answer,
+      answer: normalizeChatbotAnswer(answer),
       response_id: response.id,
       handoffSuggested: false,
     });
