@@ -354,6 +354,15 @@ useEffect(() => {
     return () => window.clearTimeout(timeoutId);
   }, [isLoading]);
 
+  useEffect(() => {
+    if (!inputRef.current) {
+      return;
+    }
+
+    inputRef.current.style.height = "0px";
+    inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 44)}px`;
+  }, [input]);
+
   const transcriptForLogging = useMemo(
     () => ({
       rating,
@@ -735,8 +744,8 @@ useEffect(() => {
                         className={clsx(
                           "max-w-full whitespace-pre-wrap break-words text-[13px] leading-6 [overflow-wrap:anywhere]",
                           isAssistant
-                            ? "inline-block rounded-[1rem] bg-[#f1f0ec] px-4 py-3 text-[#2d2d2d]"
-                            : "inline-flex rounded-[0.8rem] bg-[#63e0a5] px-3 py-2 font-medium text-[#143427]",
+                            ? "inline-block w-fit max-w-full rounded-[1rem] bg-[#f1f0ec] px-4 py-3 text-[#2d2d2d]"
+                            : "inline-flex max-w-full rounded-[0.8rem] bg-[#63e0a5] px-3 py-2 font-medium text-[#143427]",
                         )}
                       >
                         {renderMessageContent(message.content)}
@@ -798,7 +807,7 @@ useEffect(() => {
                 rows={1}
                 enterKeyHint="send"
                 onKeyDown={handleComposerKeyDown}
-                className="h-[22px] flex-1 resize-none overflow-y-auto bg-transparent px-1 py-1 text-[13px] leading-5 text-[#232323] outline-none placeholder:text-[#9b9b9b] disabled:cursor-not-allowed disabled:text-[#9b9b9b]"
+                className="min-h-[22px] max-h-[44px] flex-1 resize-none overflow-y-auto bg-transparent px-1 py-1 text-[13px] leading-5 text-[#232323] outline-none placeholder:text-[#9b9b9b] disabled:cursor-not-allowed disabled:text-[#9b9b9b]"
               />
               <button
                 type="submit"
