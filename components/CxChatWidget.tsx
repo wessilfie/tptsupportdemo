@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import {
   MessageCircleQuestion,
-  RotateCcw,
+  Minus,
   Send,
   Sparkles,
   SquarePen,
@@ -50,13 +50,15 @@ type CxChatWidgetProps = {
   greeting?: string;
 };
 
-const GREETING = "Hi! I'm TPT support.";
+const GREETING =
+  "Hi! I'm TPT Bot. I'm a virtual assistant that can help answer questions about TPT. Click a suggested topic or type below and I'll be able to help.";
 const MAX_MESSAGES_EXCHANGED = 50;
 const LIMIT_REACHED_MESSAGE =
   "Sorry, I can't help with this request anymore. Please connect with the TPT CX team at teacherspayteachers.com/Contact for further assistance.";
 const MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\(((?:https?:\/\/|mailto:)[^)\s]+)\)/gi;
 const URL_PATTERN = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
 const EMAIL_PATTERN = /([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/g;
+const EMAIL_EXACT_PATTERN = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/i;
 const BOLD_PATTERN = /(\*\*[^*]+\*\*)/g;
 
 function buildId() {
@@ -106,60 +108,69 @@ function renderMessageContent(content: string) {
 }
 
 function renderPlainTextWithUrls(content: string, keyPrefix: string) {
-  const combinedPattern = new RegExp(
-    `(${URL_PATTERN.source}|${EMAIL_PATTERN.source})`,
-    "gi",
-  );
-  const parts = content.split(combinedPattern).filter((p) => p !== undefined);
+  const combinedPattern = new RegExp(`${URL_PATTERN.source}|${EMAIL_PATTERN.source}`, "gi");
+  const nodes: React.ReactNode[] = [];
+  let cursor = 0;
+  let index = 0;
 
-  return parts.map((part, index) => {
-    if (!part) {
-      return null;
+  for (const match of content.matchAll(combinedPattern)) {
+    const matchedText = match[0];
+    const start = match.index ?? 0;
+
+    if (start > cursor) {
+      nodes.push(
+        <span key={`${keyPrefix}-text-${index}`}>
+          {renderFormattedText(content.slice(cursor, start), `${keyPrefix}-formatted-${index}`)}
+        </span>,
+      );
+      index += 1;
     }
 
-    if (part.match(EMAIL_PATTERN)) {
-      const trailing = part.match(/([.,!?)\]]+)$/)?.[1] ?? "";
-      const email = trailing ? part.slice(0, -trailing.length) : part;
-      return (
-        <>
+    const trailing = matchedText.match(/([.,!?)\]]+)$/)?.[1] ?? "";
+    const value = trailing ? matchedText.slice(0, -trailing.length) : matchedText;
+
+    if (EMAIL_EXACT_PATTERN.test(value)) {
+      nodes.push(
+        <span key={`${keyPrefix}-email-wrap-${index}`}>
           <a
-            key={`${keyPrefix}-email-${email}-${index}`}
-            href={`mailto:${email}`}
+            href={`mailto:${value}`}
             className="break-words font-medium text-[#1b5e4b] underline underline-offset-2"
           >
-            {email}
+            {value}
           </a>
           {trailing}
-        </>
+        </span>,
       );
-    }
-
-    if (part.match(URL_PATTERN)) {
-      const trailing = part.match(/([.,!?)\]]+)$/)?.[1] ?? "";
-      const url = trailing ? part.slice(0, -trailing.length) : part;
-      const href = url.startsWith("http") ? url : `https://${url}`;
-      return (
-        <>
+    } else {
+      const href = value.startsWith("http") ? value : `https://${value}`;
+      nodes.push(
+        <span key={`${keyPrefix}-url-wrap-${index}`}>
           <a
-            key={`${keyPrefix}-url-${href}-${index}`}
             href={href}
             target="_blank"
             rel="noreferrer"
             className="break-words font-medium text-[#1b5e4b] underline underline-offset-2"
           >
-            {url}
+            {value}
           </a>
           {trailing}
-        </>
+        </span>,
       );
     }
 
-    return (
-      <span key={`${keyPrefix}-text-${index}`}>
-        {renderFormattedText(part, `${keyPrefix}-formatted-${index}`)}
-      </span>
+    cursor = start + matchedText.length;
+    index += 1;
+  }
+
+  if (cursor < content.length) {
+    nodes.push(
+      <span key={`${keyPrefix}-tail-${index}`}>
+        {renderFormattedText(content.slice(cursor), `${keyPrefix}-formatted-tail-${index}`)}
+      </span>,
     );
-  });
+  }
+
+  return nodes;
 }
 
 function renderFormattedText(content: string, keyPrefix: string) {
@@ -249,6 +260,7 @@ export function CxChatWidget({
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setShowTooltip(false), 3500);
@@ -309,6 +321,33 @@ useEffect(() => {
       viewport.removeEventListener("scroll", syncKeyboardInset);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isOpen || !pendingExitAction) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      if (panelRef.current?.contains(target)) {
+        return;
+      }
+
+      finalizeExit(pendingExitAction);
+    };
+
+    document.addEventListener("mousedown", handlePointerDown, true);
+    document.addEventListener("touchstart", handlePointerDown, true);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown, true);
+      document.removeEventListener("touchstart", handlePointerDown, true);
+    };
+  }, [isOpen, pendingExitAction]);
 
   const transcriptForLogging = useMemo(
     () => ({
@@ -540,7 +579,12 @@ useEffect(() => {
   }
 
   function submitExitFeedback() {
-    if (!pendingExitAction || !feedbackChoice) {
+    if (!pendingExitAction) {
+      return;
+    }
+
+    if (!feedbackChoice) {
+      finalizeExit(pendingExitAction);
       return;
     }
 
@@ -628,10 +672,11 @@ useEffect(() => {
 
       {isOpen ? (
         <section
+          ref={panelRef}
           className="fixed left-3 right-3 z-50 flex flex-col overflow-hidden rounded-[1.6rem] border border-[#d8d8d8] bg-white shadow-[0_16px_42px_rgba(15,23,42,0.18)] sm:left-auto sm:right-6 sm:w-[332px]"
           style={{ bottom: `${panelBottom}px`, height: panelHeight }}
         >
-          <header className="flex items-center justify-between px-5 pb-3 pt-4">
+          <header className="flex items-center justify-between border-b border-slate-100 px-5 pb-3 pt-4">
             <div className="flex items-center gap-3">
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#111111] text-[#8ef0b5]">
                 <Sparkles className="size-3.5" />
@@ -640,7 +685,15 @@ useEffect(() => {
                 <p className="text-[15px] font-semibold text-[#232323]">{botName}</p>
               </div>
             </div>
-            <div className="flex items-center gap-1 text-[#232323]">
+            <div className="flex items-center gap-0.5 text-[#232323]">
+              <button
+                type="button"
+                className="flex h-8 w-8 items-center justify-center rounded-full transition hover:bg-slate-100"
+                aria-label="Minimize TPT CX chat"
+                onClick={() => setIsOpen(false)}
+              >
+                <Minus className="size-4.5" />
+              </button>
               <button
                 type="button"
                 className="flex h-8 w-8 items-center justify-center rounded-full transition hover:bg-slate-100"
@@ -648,14 +701,6 @@ useEffect(() => {
                 onClick={() => handleExitIntent("reset")}
               >
                 <SquarePen className="size-4.5" />
-              </button>
-              <button
-                type="button"
-                className="flex h-8 w-8 items-center justify-center rounded-full transition hover:bg-slate-100"
-                aria-label="Reset conversation"
-                onClick={() => handleExitIntent("reset")}
-              >
-                <RotateCcw className="size-4.5" />
               </button>
               <button
                 type="button"
@@ -682,7 +727,7 @@ useEffect(() => {
                         className={clsx(
                           "whitespace-pre-wrap break-words text-[13px] leading-6",
                           isAssistant
-                            ? "rounded-[1rem] bg-[#f1f0ec] px-4 py-3 text-[#2d2d2d]"
+                            ? "inline-block rounded-[1rem] bg-[#f1f0ec] px-4 py-3 text-[#2d2d2d]"
                             : "inline-flex rounded-[0.8rem] bg-[#63e0a5] px-3 py-2 font-medium text-[#143427]",
                         )}
                       >
@@ -759,23 +804,35 @@ useEffect(() => {
           </form>
 
           {pendingExitAction ? (
-            <div className="absolute inset-0 z-10 flex items-end bg-slate-950/30 p-3 sm:items-center sm:p-4">
-              <div className="w-full rounded-[1.75rem] bg-white p-5 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.65)]">
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
-                      Before you {pendingExitAction}
-                    </p>
-                    <h3 className="mt-1 text-lg font-semibold text-slate-900">
-                      Did we answer your question?
-                    </h3>
+            <div
+              className="absolute inset-0 z-10 flex items-end bg-slate-950/30 p-3 sm:items-center sm:p-4"
+            >
+              <div
+                className="w-full rounded-[1.5rem] bg-white p-4 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.65)]"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="space-y-3.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-[15px] font-semibold text-slate-900">
+                        Did we answer your question?
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="Return to chat"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                      onClick={clearExitFeedback}
+                    >
+                      <X className="size-4" />
+                    </button>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       className={clsx(
-                        "rounded-full px-4 py-3 text-sm font-semibold transition",
+                        "rounded-full px-3.5 py-2 text-[13px] font-semibold transition",
                         feedbackChoice === "yes"
                           ? "bg-[#63E0A5] text-slate-950"
                           : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400",
@@ -790,7 +847,7 @@ useEffect(() => {
                     <button
                       type="button"
                       className={clsx(
-                        "rounded-full px-4 py-3 text-sm font-semibold transition",
+                        "rounded-full px-3.5 py-2 text-[13px] font-semibold transition",
                         feedbackChoice === "no"
                           ? "bg-slate-900 text-white"
                           : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400",
@@ -806,14 +863,14 @@ useEffect(() => {
 
                   {feedbackChoice === "yes" ? (
                     <div className="space-y-3">
-                      <p className="text-sm text-slate-600">Rate the response out of 5.</p>
+                      <p className="text-[13px] text-slate-600">Rate the response out of 5.</p>
                       <div className="flex items-center justify-center gap-2">
                         {[1, 2, 3, 4, 5].map((value) => (
                           <button
                             key={value}
                             type="button"
                             className={clsx(
-                              "rounded-full border p-3 transition",
+                              "rounded-full border p-2.5 transition",
                               feedbackRating === value
                                 ? "border-amber-300 bg-amber-50 text-amber-500"
                                 : "border-amber-200 bg-white text-amber-400 hover:bg-amber-50",
@@ -832,7 +889,7 @@ useEffect(() => {
                     <div className="space-y-2">
                       <label
                         htmlFor="chat-feedback-reason"
-                        className="block text-sm font-medium text-slate-700"
+                        className="block text-[13px] font-medium text-slate-700"
                       >
                         Tell us why, if you&apos;d like.
                       </label>
@@ -842,7 +899,7 @@ useEffect(() => {
                         onChange={(event) => setFeedbackReason(event.target.value)}
                         rows={4}
                         placeholder="Tell us what went wrong"
-                        className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+                        className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-[13px] outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
                       />
                     </div>
                   ) : null}
@@ -850,14 +907,7 @@ useEffect(() => {
                   <div className="flex items-center justify-end gap-2">
                     <button
                       type="button"
-                      className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
-                      onClick={clearExitFeedback}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-full bg-[#14473f] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1d5d53] disabled:cursor-not-allowed disabled:bg-slate-300"
+                      className="rounded-full bg-[#14473f] px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-[#1d5d53] disabled:cursor-not-allowed disabled:bg-slate-300"
                       onClick={submitExitFeedback}
                       disabled={
                         !feedbackChoice ||
@@ -868,8 +918,10 @@ useEffect(() => {
                       {pendingExitAction === "close"
                         ? feedbackChoice === "no"
                           ? "Send feedback & close"
-                          : "Close chat"
-                        : "Reset chat"}
+                          : "Rate & close"
+                        : feedbackChoice === "no"
+                          ? "Send feedback & start new"
+                          : "Rate & start new"}
                     </button>
                   </div>
                 </div>
