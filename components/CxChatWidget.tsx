@@ -90,7 +90,7 @@ function renderMessageContent(content: string) {
         href={href}
         target="_blank"
         rel="noreferrer"
-        className="break-words font-medium text-[#1b5e4b] underline underline-offset-2"
+        className="break-all font-medium text-[#1b5e4b] underline underline-offset-2"
       >
         {label}
       </a>,
@@ -134,7 +134,7 @@ function renderPlainTextWithUrls(content: string, keyPrefix: string) {
         <span key={`${keyPrefix}-email-wrap-${index}`}>
           <a
             href={`mailto:${value}`}
-            className="break-words font-medium text-[#1b5e4b] underline underline-offset-2"
+            className="break-all font-medium text-[#1b5e4b] underline underline-offset-2"
           >
             {value}
           </a>
@@ -149,7 +149,7 @@ function renderPlainTextWithUrls(content: string, keyPrefix: string) {
             href={href}
             target="_blank"
             rel="noreferrer"
-            className="break-words font-medium text-[#1b5e4b] underline underline-offset-2"
+            className="break-all font-medium text-[#1b5e4b] underline underline-offset-2"
           >
             {value}
           </a>
@@ -243,6 +243,7 @@ export function CxChatWidget({
   const [modelMessages, setModelMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showDelayedThinking, setShowDelayedThinking] = useState(false);
   const [originalQuestion, setOriginalQuestion] = useState("");
   const [restatedQuestion, setRestatedQuestion] = useState<string | null>(null);
   const [rating, setRating] = useState<number | null>(null);
@@ -287,15 +288,6 @@ useEffect(() => {
       window.setTimeout(() => inputRef.current?.focus(), 80);
     }
   }, [isOpen, pendingExitAction, stage]);
-
-  useEffect(() => {
-    if (!inputRef.current) {
-      return;
-    }
-
-    inputRef.current.style.height = "0px";
-    inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 128)}px`;
-  }, [input]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.visualViewport) {
@@ -349,6 +341,19 @@ useEffect(() => {
     };
   }, [isOpen, pendingExitAction]);
 
+  useEffect(() => {
+    if (!isLoading) {
+      setShowDelayedThinking(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setShowDelayedThinking(true);
+    }, 10000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isLoading]);
+
   const transcriptForLogging = useMemo(
     () => ({
       rating,
@@ -386,6 +391,7 @@ useEffect(() => {
     setModelMessages([]);
     setInput("");
     setIsLoading(false);
+    setShowDelayedThinking(false);
     setOriginalQuestion("");
     setRestatedQuestion(null);
     setRating(null);
@@ -722,10 +728,12 @@ useEffect(() => {
                     key={message.id}
                     className={clsx("flex", isAssistant ? "justify-start" : "justify-end")}
                   >
-                    <div className={clsx("max-w-[88%]", isAssistant ? "text-[#2d2d2d]" : "")}>
+                    <div
+                      className={clsx("min-w-0 max-w-[88%]", isAssistant ? "text-[#2d2d2d]" : "")}
+                    >
                       <div
                         className={clsx(
-                          "whitespace-pre-wrap break-words text-[13px] leading-6",
+                          "max-w-full whitespace-pre-wrap break-words text-[13px] leading-6 [overflow-wrap:anywhere]",
                           isAssistant
                             ? "inline-block rounded-[1rem] bg-[#f1f0ec] px-4 py-3 text-[#2d2d2d]"
                             : "inline-flex rounded-[0.8rem] bg-[#63e0a5] px-3 py-2 font-medium text-[#143427]",
@@ -739,17 +747,22 @@ useEffect(() => {
                 );
               })}
 
-              {isLoading ? (
+              {isLoading && showDelayedThinking ? (
                 <div className="flex justify-start">
                   <div className="rounded-[1rem] bg-[#f1f0ec] px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      {[0, 1, 2].map((dot) => (
-                        <span
-                          key={dot}
-                          className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#77dba4]"
-                          style={{ animationDelay: `${dot * 0.15}s` }}
-                        />
-                      ))}
+                    <div className="space-y-2">
+                      <p className="text-[12px] font-medium text-[#4b5563]">
+                        TPT Bot is thinking...
+                      </p>
+                      <div className="flex items-center gap-1">
+                        {[0, 1, 2].map((dot) => (
+                          <span
+                            key={dot}
+                            className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#77dba4]"
+                            style={{ animationDelay: `${dot * 0.15}s` }}
+                          />
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -776,9 +789,7 @@ useEffect(() => {
                 onChange={(event) => setInput(event.target.value)}
                 placeholder={
                   canEdit
-                    ? isLoading
-                      ? "Keep typing. You can send when the bot replies."
-                      : stage === "awaiting_rephrase"
+                    ? stage === "awaiting_rephrase"
                         ? "Restate your question..."
                         : "Ask a question..."
                     : disabledPlaceholder
@@ -787,7 +798,7 @@ useEffect(() => {
                 rows={1}
                 enterKeyHint="send"
                 onKeyDown={handleComposerKeyDown}
-                className="max-h-24 min-h-[22px] flex-1 resize-none bg-transparent px-1 py-1 text-[13px] leading-5 text-[#232323] outline-none placeholder:text-[#9b9b9b] disabled:cursor-not-allowed disabled:text-[#9b9b9b]"
+                className="h-[22px] flex-1 resize-none overflow-y-auto bg-transparent px-1 py-1 text-[13px] leading-5 text-[#232323] outline-none placeholder:text-[#9b9b9b] disabled:cursor-not-allowed disabled:text-[#9b9b9b]"
               />
               <button
                 type="submit"
